@@ -76,3 +76,5 @@ button.quiet:hover {
 .card-name { padding: 0.8rem 1rem 0.1rem; font-size: 1.1rem; text-align: left; }
 .card-scene { padding: 0 1rem 1rem; color: var(--dim); font-style: italic; font-size: 0.9rem; text-align: left; }
 .winddown-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2rem; }
+.mood-input { background: #131110; border: 1px solid #262220; color: var(--fg); font: inherit; padding: 0.8rem 1.2rem; border-radius: 8px; width: min(420px, 80vw); text-align: center; }
+.mood-input:focus { outline: none; border-color: var(--ember); }

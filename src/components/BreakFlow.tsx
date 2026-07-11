@@ -4,8 +4,9 @@ import { useSearchParams } from 'next/navigation';
 import type { CompanionManifest } from '@/lib/companions';
 import CompanionPicker from './CompanionPicker';
 import BreakPlayer from './BreakPlayer';
+import MoodNote from './MoodNote';
 
-type Stage = 'pick' | 'smoking' | 'done';
+type Stage = 'pick' | 'smoking' | 'note' | 'done';
 
 export default function BreakFlow({ companions }: { companions: CompanionManifest[] }) {
   const fast = useSearchParams().get('fast') === '1';
@@ -48,7 +49,10 @@ export default function BreakFlow({ companions }: { companions: CompanionManifes
       onPick={begin} />
   );
   if (stage === 'smoking' && current) return (
-    <BreakPlayer manifest={current} fast={fast} onComplete={() => finish('')} />
+    <BreakPlayer manifest={current} fast={fast} onComplete={() => setStage('note')} />
+  );
+  if (stage === 'note') return (
+    <MoodNote onSubmit={finish} />
   );
   return (
     <div className="winddown-screen">
