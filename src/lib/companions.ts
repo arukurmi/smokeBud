@@ -35,7 +35,13 @@ export function loadCompanions(dir = path.join(process.cwd(), 'public', 'compani
     .flatMap((d) => {
       const file = path.join(dir, d.name, 'manifest.json');
       if (!fs.existsSync(file)) return [];
-      return [parseManifest(d.name, JSON.parse(fs.readFileSync(file, 'utf8')))];
+      try {
+        return [parseManifest(d.name, JSON.parse(fs.readFileSync(file, 'utf8')))];
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`skipping companion ${d.name}: ${message}`);
+        return [];
+      }
     })
     .sort((a, b) => a.id.localeCompare(b.id));
 }
