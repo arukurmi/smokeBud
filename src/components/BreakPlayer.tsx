@@ -19,17 +19,22 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
   const [idx, setIdx] = useState(0);
   const [videoOk, setVideoOk] = useState(true);
   const [videoOkIdx, setVideoOkIdx] = useState(-1);
+  const [preloadNext, setPreloadNext] = useState(false);
+  const [fadeIn, setFadeIn] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const nextVideoRef = useRef<HTMLVideoElement>(null);
   const done = useRef(false);
   const total = useMemo(() => totalDuration(seq), [seq]);
   const [elapsed, setElapsed] = useState(0);
 
-  // Reset the video-ok flag whenever the current clip changes, following the
-  // render-time "adjusting state when a prop changes" pattern instead of an
-  // effect (avoids a setState-in-effect cascade).
+  // Reset the video-ok/preload/fade state whenever the current clip changes,
+  // following the render-time "adjusting state when a prop changes" pattern
+  // instead of an effect (avoids a setState-in-effect cascade).
   if (videoOkIdx !== idx) {
     setVideoOkIdx(idx);
     setVideoOk(true);
+    setPreloadNext(false);
+    setFadeIn(false);
   }
 
   useEffect(() => {
@@ -42,8 +47,13 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
       if (!done.current) { done.current = true; onComplete(); }
       return;
     }
-    const t = setTimeout(() => setIdx((i) => i + 1), seq[idx].duration * 1000);
-    return () => clearTimeout(t);
+    const durationMs = seq[idx].duration * 1000;
+    const t = setTimeout(() => setIdx((i) => i + 1), durationMs);
+    // Mount the next clip invisibly ~1.5s before this one ends, so it's
+    // ready to fade in the moment we advance.
+    const preloadDelay = Math.max(0, durationMs - 1500);
+    const p = setTimeout(() => setPreloadNext(true), preloadDelay);
+    return () => { clearTimeout(t); clearTimeout(p); };
   }, [idx, seq, onComplete]);
 
   // Unmuted autoplay can be silently rejected by the browser (esp. Safari)
@@ -54,19 +64,33 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
     const el = videoRef.current;
     if (!el) return;
     el.play()?.catch(() => setVideoOk(false));
+    // Trigger the CSS opacity transition on the next frame so the browser
+    // registers the initial (0) opacity before animating to 1.
+    const raf = requestAnimationFrame(() => setFadeIn(true));
+    return () => cancelAnimationFrame(raf);
   }, [idx, seq.length, videoOk]);
 
   if (idx >= seq.length) return null;
   const item = seq[idx];
+  const nextItem = idx + 1 < seq.length ? seq[idx + 1] : null;
   const left = Math.max(0, 1 - elapsed / total);
 
   return (
     <div className="player" data-testid="break-player">
       {videoOk ? (
-        <video ref={videoRef} key={item.src + idx} data-testid="clip-video" src={item.src}
-          autoPlay muted={false} playsInline
-          onError={() => setVideoOk(false)}
-          style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        <>
+          <video ref={videoRef} key={item.src + idx} data-testid="clip-video" src={item.src}
+            autoPlay muted={false} playsInline
+            onError={() => setVideoOk(false)}
+            className="clip"
+            style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: fadeIn ? 1 : 0 }} />
+          {preloadNext && nextItem && (
+            <video ref={nextVideoRef} key={nextItem.src + (idx + 1)} src={nextItem.src}
+              muted preload="auto" playsInline
+              className="clip"
+              style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0 }} />
+          )}
+        </>
       ) : (
         <CanvasScene phase={item.phase} scene={manifest.scene} />
       )}
