@@ -8,22 +8,27 @@ export default function CanvasScene({ phase, scene }: { phase: ClipPhase; scene:
   const ref = useRef<HTMLCanvasElement>(null);
   const phaseRef = useRef(phase);
   const phaseStartTRef = useRef(0);
-  if (phaseRef.current !== phase) {
-    phaseStartTRef.current = -1; // signal: capture current t on next draw
-  }
-  phaseRef.current = phase;
+  const tRef = useRef(0);
+
+  useEffect(() => {
+    if (phaseRef.current !== phase) {
+      phaseStartTRef.current = tRef.current;
+    }
+    phaseRef.current = phase;
+  }, [phase]);
 
   useEffect(() => {
     const canvas = ref.current!;
     const ctx = canvas.getContext('2d')!;
-    let raf = 0; let t = 0;
+    let raf = 0;
     const parts: P[] = [];
     const resize = () => { canvas.width = innerWidth; canvas.height = innerHeight; };
     resize(); addEventListener('resize', resize);
 
     const draw = () => {
       const { width: w, height: h } = canvas;
-      t += 1 / 60;
+      tRef.current += 1 / 60;
+      const t = tRef.current;
       const g = ctx.createLinearGradient(0, 0, 0, h);
       g.addColorStop(0, '#06070c'); g.addColorStop(1, '#141008');
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
@@ -43,7 +48,6 @@ export default function CanvasScene({ phase, scene }: { phase: ClipPhase; scene:
       ctx.beginPath(); ctx.moveTo(cx - 45, cy - 40); ctx.quadraticCurveTo(cx - 70, cy - 90, hx, hy); ctx.stroke();
       // ember
       const ph = phaseRef.current;
-      if (phaseStartTRef.current === -1) phaseStartTRef.current = t;
       const base = ph === 'lightup' ? 0.9 + 0.6 * Math.abs(Math.sin(t * 6))
         : ph === 'winddown' ? Math.max(0, 0.7 - (t - phaseStartTRef.current) * 0.02)
         : 0.55 + 0.35 * Math.max(0, Math.sin(t * 0.7)); // slow drag rhythm

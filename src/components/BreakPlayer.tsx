@@ -18,9 +18,18 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
 
   const [idx, setIdx] = useState(0);
   const [videoOk, setVideoOk] = useState(true);
+  const [videoOkIdx, setVideoOkIdx] = useState(-1);
   const done = useRef(false);
   const total = useMemo(() => totalDuration(seq), [seq]);
   const [elapsed, setElapsed] = useState(0);
+
+  // Reset the video-ok flag whenever the current clip changes, following the
+  // render-time "adjusting state when a prop changes" pattern instead of an
+  // effect (avoids a setState-in-effect cascade).
+  if (videoOkIdx !== idx) {
+    setVideoOkIdx(idx);
+    setVideoOk(true);
+  }
 
   useEffect(() => {
     const tick = setInterval(() => setElapsed((e) => e + 0.25), 250);
@@ -32,7 +41,6 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
       if (!done.current) { done.current = true; onComplete(); }
       return;
     }
-    setVideoOk(true);
     const t = setTimeout(() => setIdx((i) => i + 1), seq[idx].duration * 1000);
     return () => clearTimeout(t);
   }, [idx, seq, onComplete]);
