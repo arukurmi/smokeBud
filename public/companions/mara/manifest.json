@@ -1,0 +1,12 @@
+{
+  "name": "Mara",
+  "scene": "balcony at night",
+  "poster": "poster.jpg",
+  "lightup": { "src": "lightup.mp4", "duration": 8 },
+  "loops": [
+    { "src": "loop-1.mp4", "duration": 30 },
+    { "src": "loop-2.mp4", "duration": 28 },
+    { "src": "loop-3.mp4", "duration": 32 }
+  ],
+  "winddown": { "src": "winddown.mp4", "duration": 8 }
+}
