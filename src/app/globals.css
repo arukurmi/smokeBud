@@ -60,3 +60,6 @@ button.quiet:hover {
   border-color: var(--ember);
   color: var(--ember);
 }
+
+.burn { position: fixed; left: 10%; right: 10%; bottom: 5vh; height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; }
+.burn-line { height: 100%; background: linear-gradient(90deg, #e8dfd2 92%, var(--ember)); border-radius: 2px; transition: width 0.3s linear; }
