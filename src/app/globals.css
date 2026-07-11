@@ -84,3 +84,7 @@ button.quiet:hover {
 .quiet-link:hover { color: var(--ember); }
 .heat { display: grid; grid-template-columns: repeat(28, 12px); gap: 4px; }
 .heat-cell { width: 12px; height: 12px; border-radius: 3px; border: 1px solid #262220; }
+.notes { max-width: 480px; display: flex; flex-direction: column; gap: 0.8rem; }
+.note { font-style: italic; }
+.note-date, .note-companion { color: var(--dim); font-style: normal; font-size: 0.85rem; }
+.empty { color: var(--dim); font-style: italic; }

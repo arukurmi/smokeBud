@@ -19,6 +19,7 @@ export default async function History() {
   const now = new Date();
   const week = breaksThisWeek(dates, now);
   const streak = dayStreak(dates, now);
+  const notes = rows.filter((r) => r.moodNote).slice(0, 20);
   return (
     <main className="landing history">
       <h1 className="wordmark">your breaks</h1>
@@ -29,6 +30,16 @@ export default async function History() {
         {streak === 0 ? 'no streak yet — start one tonight.' : `${streak}-day streak.`}
       </p>
       <HeatStrip data={heatStrip(dates, now)} />
+      <section className="notes" data-testid="mood-timeline">
+        {notes.length === 0 ? (
+          <p className="empty">no notes yet — your thoughts stay here, just for you.</p>
+        ) : notes.map((n) => (
+          <p key={n.id} className="note">
+            <span className="note-date">{n.completedAt!.toISOString().slice(0, 10)}</span>
+            <span className="note-companion"> · with {n.companionId} · </span>{n.moodNote}
+          </p>
+        ))}
+      </section>
       <Link href="/" className="quiet-link">back outside</Link>
     </main>
   );
