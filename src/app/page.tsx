@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { auth } from '@/auth';
 import { loadCompanions } from '@/lib/companions';
 import BreakFlow from '@/components/BreakFlow';
@@ -10,7 +11,10 @@ export default async function Home() {
     <main className="landing">
       <h1 className="wordmark">smokebud</h1>
       {session?.user ? (
-        <Suspense><BreakFlow companions={loadCompanions()} /></Suspense>
+        <>
+          <Suspense><BreakFlow companions={loadCompanions()} /></Suspense>
+          <Link href="/history" data-testid="history-link" className="quiet-link">your breaks →</Link>
+        </>
       ) : (
         <>
           <p className="invite">take a break.</p>

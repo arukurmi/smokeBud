@@ -79,3 +79,6 @@ button.quiet:hover {
 .mood-input { background: #131110; border: 1px solid #262220; color: var(--fg); font: inherit; padding: 0.8rem 1.2rem; border-radius: 8px; width: min(420px, 80vw); text-align: center; }
 .mood-input:focus { outline: none; border-color: var(--ember); }
 .presence { position: fixed; top: 1.2rem; left: 50%; transform: translateX(-50%); color: rgba(207,201,192,0.4); font-size: 0.85rem; font-style: italic; }
+.streak { color: var(--ember); font-size: 1.1rem; }
+.quiet-link { color: var(--dim); }
+.quiet-link:hover { color: var(--ember); }
