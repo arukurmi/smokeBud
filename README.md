@@ -19,7 +19,7 @@ a quiet website for taking a 5–6 minute "smoke break" with a virtual companion
 2. **configure google oauth**
    - go to [google cloud console](https://console.cloud.google.com/)
    - create or select a project
-   - enable the google+ api
+   - configure the OAuth consent screen
    - create an oauth 2.0 client id (application type: web)
    - add authorized redirect uri: `http://localhost:3000/api/auth/callback/google`
    - copy `client id` and `client secret` to `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`
