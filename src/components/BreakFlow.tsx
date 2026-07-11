@@ -8,7 +8,7 @@ import MoodNote from './MoodNote';
 
 type Stage = 'pick' | 'smoking' | 'note' | 'done';
 
-export default function BreakFlow({ companions }: { companions: CompanionManifest[] }) {
+export default function BreakFlow({ companions, favoriteId }: { companions: CompanionManifest[]; favoriteId?: string }) {
   const fast = useSearchParams().get('fast') === '1';
   const [stage, setStage] = useState<Stage>('pick');
   const [current, setCurrent] = useState<CompanionManifest | null>(null);
@@ -46,7 +46,7 @@ export default function BreakFlow({ companions }: { companions: CompanionManifes
 
   if (stage === 'pick') return (
     <CompanionPicker companions={companions}
-      onPick={begin} />
+      onPick={begin} initialId={favoriteId} />
   );
   if (stage === 'smoking' && current) return (
     <BreakPlayer manifest={current} fast={fast} onComplete={() => setStage('note')} />
