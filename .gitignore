@@ -36,6 +36,11 @@ yarn-error.log*
 
 # prisma database
 prisma/dev.db*
+prisma/e2e.db*
+
+# playwright
+/playwright-report/
+/test-results/
 
 # vercel
 .vercel
