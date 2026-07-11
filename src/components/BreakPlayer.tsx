@@ -19,6 +19,7 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
   const [idx, setIdx] = useState(0);
   const [videoOk, setVideoOk] = useState(true);
   const [videoOkIdx, setVideoOkIdx] = useState(-1);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const done = useRef(false);
   const total = useMemo(() => totalDuration(seq), [seq]);
   const [elapsed, setElapsed] = useState(0);
@@ -45,6 +46,16 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
     return () => clearTimeout(t);
   }, [idx, seq, onComplete]);
 
+  // Unmuted autoplay can be silently rejected by the browser (esp. Safari)
+  // on later clip mounts; a rejection does not fire onError, so kick off
+  // playback explicitly and fall back to the canvas scene if it's blocked.
+  useEffect(() => {
+    if (idx >= seq.length || !videoOk) return;
+    const el = videoRef.current;
+    if (!el) return;
+    el.play()?.catch(() => setVideoOk(false));
+  }, [idx, seq.length, videoOk]);
+
   if (idx >= seq.length) return null;
   const item = seq[idx];
   const left = Math.max(0, 1 - elapsed / total);
@@ -52,7 +63,7 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
   return (
     <div className="player" data-testid="break-player">
       {videoOk ? (
-        <video key={item.src + idx} data-testid="clip-video" src={item.src}
+        <video ref={videoRef} key={item.src + idx} data-testid="clip-video" src={item.src}
           autoPlay muted={false} playsInline
           onError={() => setVideoOk(false)}
           style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
