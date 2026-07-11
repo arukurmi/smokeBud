@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
-import { breaksThisWeek, dayStreak } from '@/lib/streaks';
+import { breaksThisWeek, dayStreak, heatStrip } from '@/lib/streaks';
+import HeatStrip from '@/components/HeatStrip';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,7 @@ export default async function History() {
       <p data-testid="day-streak" className="streak">
         {streak === 0 ? 'no streak yet — start one tonight.' : `${streak}-day streak.`}
       </p>
+      <HeatStrip data={heatStrip(dates, now)} />
       <Link href="/" className="quiet-link">back outside</Link>
     </main>
   );
