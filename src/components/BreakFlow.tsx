@@ -14,6 +14,7 @@ export default function BreakFlow({ companions }: { companions: CompanionManifes
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   async function begin(id: string) {
+    setSessionId(null);
     setCurrent(companions.find((c) => c.id === id)!);
     setStage('smoking');
     try {
