@@ -5,6 +5,7 @@ import { buildSequence, totalDuration } from '@/lib/sequence';
 import CanvasScene from './CanvasScene';
 import Subtitles from './Subtitles';
 import AmbientAudio from './AmbientAudio';
+import PresenceCounter from './PresenceCounter';
 
 export default function BreakPlayer({ manifest, fast = false, onComplete }:
   { manifest: CompanionManifest; fast?: boolean; onComplete: () => void }) {
@@ -55,6 +56,7 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
       </div>
       <Subtitles fast={fast} />
       <AmbientAudio />
+      <PresenceCounter fast={fast} />
     </div>
   );
 }
