@@ -63,3 +63,5 @@ button.quiet:hover {
 
 .burn { position: fixed; left: 10%; right: 10%; bottom: 5vh; height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; }
 .burn-line { height: 100%; background: linear-gradient(90deg, #e8dfd2 92%, var(--ember)); border-radius: 2px; transition: width 0.3s linear; }
+.subtitle { position: fixed; bottom: 12vh; width: 100%; text-align: center; font-style: italic; color: rgba(230,224,214,0.85); text-shadow: 0 1px 8px #000; animation: fadein 1.2s ease; }
+@keyframes fadein { from { opacity: 0 } to { opacity: 1 } }

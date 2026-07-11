@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CompanionManifest } from '@/lib/companions';
 import { buildSequence, totalDuration } from '@/lib/sequence';
 import CanvasScene from './CanvasScene';
+import Subtitles from './Subtitles';
 
 export default function BreakPlayer({ manifest, fast = false, onComplete }:
   { manifest: CompanionManifest; fast?: boolean; onComplete: () => void }) {
@@ -51,6 +52,7 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
       <div className="burn" aria-hidden>
         <div className="burn-line" data-testid="burn-progress" style={{ width: `${left * 100}%` }} />
       </div>
+      <Subtitles fast={fast} />
     </div>
   );
 }
