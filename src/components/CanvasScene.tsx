@@ -7,6 +7,10 @@ interface P { x: number; y: number; vx: number; vy: number; r: number; a: number
 export default function CanvasScene({ phase, scene }: { phase: ClipPhase; scene: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const phaseRef = useRef(phase);
+  const phaseStartTRef = useRef(0);
+  if (phaseRef.current !== phase) {
+    phaseStartTRef.current = -1; // signal: capture current t on next draw
+  }
   phaseRef.current = phase;
 
   useEffect(() => {
@@ -39,8 +43,9 @@ export default function CanvasScene({ phase, scene }: { phase: ClipPhase; scene:
       ctx.beginPath(); ctx.moveTo(cx - 45, cy - 40); ctx.quadraticCurveTo(cx - 70, cy - 90, hx, hy); ctx.stroke();
       // ember
       const ph = phaseRef.current;
+      if (phaseStartTRef.current === -1) phaseStartTRef.current = t;
       const base = ph === 'lightup' ? 0.9 + 0.6 * Math.abs(Math.sin(t * 6))
-        : ph === 'winddown' ? Math.max(0, 0.7 - t * 0.02)
+        : ph === 'winddown' ? Math.max(0, 0.7 - (t - phaseStartTRef.current) * 0.02)
         : 0.55 + 0.35 * Math.max(0, Math.sin(t * 0.7)); // slow drag rhythm
       ctx.fillStyle = `rgba(255,120,40,${Math.min(1, base)})`;
       ctx.shadowColor = '#ff7828'; ctx.shadowBlur = 18 * base;
