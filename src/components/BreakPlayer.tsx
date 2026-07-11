@@ -4,6 +4,7 @@ import type { CompanionManifest } from '@/lib/companions';
 import { buildSequence, totalDuration } from '@/lib/sequence';
 import CanvasScene from './CanvasScene';
 import Subtitles from './Subtitles';
+import AmbientAudio from './AmbientAudio';
 
 export default function BreakPlayer({ manifest, fast = false, onComplete }:
   { manifest: CompanionManifest; fast?: boolean; onComplete: () => void }) {
@@ -53,6 +54,7 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
         <div className="burn-line" data-testid="burn-progress" style={{ width: `${left * 100}%` }} />
       </div>
       <Subtitles fast={fast} />
+      <AmbientAudio />
     </div>
   );
 }
