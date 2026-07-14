@@ -21,26 +21,37 @@ export default async function History() {
   const streak = dayStreak(dates, now);
   const notes = rows.filter((r) => r.moodNote).slice(0, 20);
   return (
-    <main className="landing history">
-      <h1 className="wordmark">your breaks</h1>
-      <p className="invite" data-testid="week-count">
-        {week === 0 ? 'no breaks yet this week.' : `${week} break${week === 1 ? '' : 's'} this week.`}
-      </p>
-      <p data-testid="day-streak" className="streak">
-        {streak === 0 ? 'no streak yet — start one tonight.' : `${streak}-day streak.`}
-      </p>
-      <HeatStrip data={heatStrip(dates, now)} />
-      <section className="notes" data-testid="mood-timeline">
-        {notes.length === 0 ? (
-          <p className="empty">no notes yet — your thoughts stay here, just for you.</p>
-        ) : notes.map((n) => (
-          <p key={n.id} className="note">
-            <span className="note-date">{n.completedAt!.toISOString().slice(0, 10)}</span>
-            <span className="note-companion"> · with {n.companionId} · </span>{n.moodNote}
-          </p>
-        ))}
-      </section>
-      <Link href="/" className="quiet-link">back outside</Link>
-    </main>
+    <>
+      <header className="hud-top">
+        <Link href="/" className="wordmark wordmark-link">smokebud</Link>
+        <Link href="/" className="quiet-link">back outside</Link>
+      </header>
+      <main className="landing history">
+        <p className="eyebrow">the ashtray remembers</p>
+        <p className="invite" data-testid="week-count">
+          {week === 0 ? 'no breaks yet this week.' : `${week} break${week === 1 ? '' : 's'} this week.`}
+        </p>
+        <p data-testid="day-streak" className="streak">
+          {streak === 0 ? 'no streak yet — start one tonight.' : `${streak}-day streak.`}
+        </p>
+        <div className="heat-wrap">
+          <HeatStrip data={heatStrip(dates, now)} />
+          <p className="heat-caption">the last four weeks, one cell a night</p>
+        </div>
+        <section className="notes" data-testid="mood-timeline">
+          {notes.length === 0 ? (
+            <p className="empty">no notes yet — your thoughts stay here, just for you.</p>
+          ) : notes.map((n) => (
+            <p key={n.id} className="note">
+              <span className="note-meta">
+                <span className="note-date">{n.completedAt!.toISOString().slice(0, 10)}</span>
+                <span className="note-companion"> · with {n.companionId}</span>
+              </span>
+              {n.moodNote}
+            </p>
+          ))}
+        </section>
+      </main>
+    </>
   );
 }

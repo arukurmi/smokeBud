@@ -143,7 +143,7 @@ p.invite {
   letter-spacing: -0.015em;
   color: var(--paper);
   text-wrap: balance;
-  text-shadow: 0 2px 40px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 2px 26px rgba(0, 0, 0, 0.35);
 }
 
 .sub {
@@ -562,14 +562,54 @@ input:focus-visible {
   border: 1px solid var(--line);
 }
 
-.notes {
-  max-width: 520px;
+.heat-cell.lit {
+  border-color: rgba(255, 122, 51, 0.4);
+  box-shadow: 0 0 8px rgba(255, 122, 51, 0.25);
+}
+
+.heat-wrap {
   display: flex;
   flex-direction: column;
-  gap: 1.3rem;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.heat-caption {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  color: var(--ash);
+}
+
+.wordmark-link {
+  text-decoration: none;
+}
+
+main.history {
+  gap: 1.6rem;
+}
+
+main.history .invite {
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+}
+
+main.history .notes {
+  margin-top: 1.6rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
+}
+
+.notes {
+  width: min(520px, 88vw);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
   font-style: italic;
   font-size: 1.05rem;
   line-height: 1.65;
