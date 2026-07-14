@@ -297,6 +297,7 @@ input:focus-visible {
 
 .subtitle {
   position: fixed;
+  left: 0;
   bottom: 13vh;
   width: 100%;
   padding: 0 8vw;
