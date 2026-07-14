@@ -4,7 +4,7 @@ export default function SignIn() {
   return (
     <div className="signin">
       <form action={async () => { 'use server'; await signIn('google', { redirectTo: '/' }); }}>
-        <button className="quiet" type="submit">sign in with google</button>
+        <button className="quiet" type="submit">step outside with google</button>
       </form>
       {process.env.E2E_TEST === '1' && (
         <form data-testid="test-login"
