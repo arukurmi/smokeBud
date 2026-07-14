@@ -67,15 +67,15 @@ export class SmokePlume {
     this.peak = opts.peak ?? 0.11;
   }
 
-  /** Spawn `count` puffs at the source; call every frame with a small count. */
-  emit(x: number, y: number, count: number, t: number): void {
+  /** Spawn `count` puffs at the source; optional initial velocity for exhales. */
+  emit(x: number, y: number, count: number, t: number, vx0 = 0, vy0 = 0): void {
     for (let i = 0; i < count && this.particles.length < this.max; i++) {
       const maxLife = 9 + Math.random() * 7;
       this.particles.push({
         x: x + (Math.random() - 0.5) * 3,
         y: y + (Math.random() - 0.5) * 2,
-        vx: (Math.random() - 0.5) * 4,
-        vy: -(this.rise * (0.75 + Math.random() * 0.5)),
+        vx: vx0 + (Math.random() - 0.5) * 4,
+        vy: vy0 - (this.rise * (0.75 + Math.random() * 0.5)),
         life: 0,
         maxLife,
         size: 5 + Math.random() * 7,
