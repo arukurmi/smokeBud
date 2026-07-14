@@ -44,6 +44,7 @@ them as a drip over launch week. Media files referenced live in this folder.
 > no video. no loop. your break is never the same twice.
 
 **media:** `04-subtitle.png` (mid-drag frame with "five minutes is enough sometimes.")
+alt option: `08-rainy-theo.png` — theo's scene gets real rain while mara gets moon and stars; good for a "same app, different weather" quote-tweet follow-up.
 
 ---
 

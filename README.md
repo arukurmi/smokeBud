@@ -2,12 +2,27 @@
 
 a quiet website for taking a 5–6 minute "smoke break" with a virtual companion. built for lonely or stressed people who want a moment of low-key company. watch your companion light up, smoke, and share a quiet one-liner while you breathe. a live counter shows how many others are on a break right now.
 
+![landing — take a break](docs/press/01-landing.png)
+![the break scene — a companion smoking over a sleeping city](docs/press/04-subtitle.png)
+
 ## features
 
 - **google sign-in** — authenticate seamlessly with your google account
-- **companion clips** — watch ai-generated videos of your chosen companion
+- **living canvas scenes** — every wisp of smoke is simulated live: a curl-noise wind field, a breathing ember, and a companion who raises, drags, and exhales on a slow cycle. rainy companions get rain
+- **companion clips** — or drop in ai-generated videos of your chosen companion; the canvas scene is the always-on fallback
 - **live counter** — see how many others are taking a break right now
 - **streaks & mood notes** — track your breaks with a heat-strip calendar at `/history` and keep private mood notes
+
+## design
+
+"2am fire escape": cool blue-black night, one warm ember. Fraunces carries the
+whispered serif voice; IBM Plex Mono is the HUD — presence, dates, streaks —
+pinned to the corners like a quiet OSD. film grain and a vignette frame every
+screen. the shared smoke engine lives in `src/lib/smoke.ts`; the landing
+backdrop and break scene both drive it.
+
+more screens in [`docs/press/`](docs/press/), regenerable with
+`npx tsx scripts/capture.ts` against a running e2e server.
 
 ## quick start
 
