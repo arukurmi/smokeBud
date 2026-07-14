@@ -100,7 +100,7 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
         </div>
       </div>
       <Subtitles fast={fast} />
-      <AmbientAudio />
+      <AmbientAudio rain={/rain/i.test(manifest.scene)} />
       <PresenceCounter fast={fast} />
     </div>
   );
