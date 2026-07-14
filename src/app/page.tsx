@@ -6,6 +6,7 @@ import { loadCompanions } from '@/lib/companions';
 import BreakFlow from '@/components/BreakFlow';
 import SignIn from '@/components/SignIn';
 import SmokeBackdrop from '@/components/SmokeBackdrop';
+import PresenceCounter from '@/components/PresenceCounter';
 
 export default async function Home() {
   const session = await auth();
@@ -32,6 +33,7 @@ export default async function Home() {
               watch the smoke curl, hear the night hum, then go back inside.
             </p>
             <SignIn />
+            <PresenceCounter inline />
           </section>
         )}
       </main>

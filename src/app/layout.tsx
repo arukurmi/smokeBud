@@ -16,9 +16,21 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://smokebud.app"),
   title: "smokebud — a quiet smoke break, together",
   description:
     "five quiet minutes with a companion who doesn't need you to talk. no feed, no likes, just smoke.",
+  openGraph: {
+    title: "smokebud — a quiet smoke break, together",
+    description: "five quiet minutes with a companion who doesn't need you to talk.",
+    images: ["/og.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "smokebud — a quiet smoke break, together",
+    description: "five quiet minutes with a companion who doesn't need you to talk.",
+    images: ["/og.png"],
+  },
 };
 
 export default function RootLayout({

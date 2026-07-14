@@ -98,11 +98,21 @@ export default function CanvasScene({ phase, scene }: { phase: ClipPhase; scene:
     phaseRef.current = phase;
   }, [phase]);
 
+  const rainy = /rain/i.test(scene);
+
   useEffect(() => {
     const canvas = ref.current!;
     const ctx = canvas.getContext('2d')!;
     let { w, h } = fitCanvas(canvas, ctx);
     let skyline = buildSkyline(w, h);
+    const drops = rainy
+      ? Array.from({ length: 110 }, (_, i) => ({
+          x: rnd(i * 7) * 1.1, // fraction of width; can start offscreen
+          y: rnd(i * 7 + 3),
+          len: 9 + rnd(i * 7 + 5) * 13,
+          speed: 0.55 + rnd(i * 7 + 9) * 0.5, // screens per second
+        }))
+      : [];
     const onResize = () => {
       ({ w, h } = fitCanvas(canvas, ctx));
       skyline = buildSkyline(w, h);
@@ -124,24 +134,35 @@ export default function CanvasScene({ phase, scene }: { phase: ClipPhase; scene:
 
       ctx.drawImage(skyline, 0, 0);
 
-      // stars
-      for (let i = 0; i < 42; i++) {
-        const sx = rnd(i * 3) * w;
-        const sy = rnd(i * 3 + 1) * h * 0.45;
-        const tw = 0.05 + 0.14 * Math.abs(Math.sin(t * (0.3 + rnd(i) * 0.5) + i));
-        ctx.fillStyle = `rgba(210,220,240,${tw})`;
-        ctx.fillRect(sx, sy, 1.4, 1.4);
+      if (!rainy) {
+        // stars
+        for (let i = 0; i < 42; i++) {
+          const sx = rnd(i * 3) * w;
+          const sy = rnd(i * 3 + 1) * h * 0.45;
+          const tw = 0.05 + 0.14 * Math.abs(Math.sin(t * (0.3 + rnd(i) * 0.5) + i));
+          ctx.fillStyle = `rgba(210,220,240,${tw})`;
+          ctx.fillRect(sx, sy, 1.4, 1.4);
+        }
+        // moon, waning, with haze
+        const mx = w * 0.82, my = h * 0.15;
+        ctx.save();
+        ctx.fillStyle = 'rgba(222,229,244,0.85)';
+        ctx.shadowColor = 'rgba(200,215,245,0.55)';
+        ctx.shadowBlur = 46;
+        ctx.beginPath(); ctx.arc(mx, my, 24, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = 'rgba(9,11,20,0.92)';
+        ctx.beginPath(); ctx.arc(mx - 12, my - 7, 21, 0, Math.PI * 2); ctx.fill();
+      } else {
+        // low cloud sheet instead of stars, fading into the sky
+        const cloud = ctx.createLinearGradient(0, 0, 0, h * 0.42);
+        const ca = 0.5 + 0.06 * Math.sin(t * 0.2);
+        cloud.addColorStop(0, `rgba(16,19,30,${ca})`);
+        cloud.addColorStop(0.65, `rgba(16,19,30,${ca * 0.4})`);
+        cloud.addColorStop(1, 'rgba(16,19,30,0)');
+        ctx.fillStyle = cloud;
+        ctx.fillRect(0, 0, w, h * 0.42);
       }
-      // moon, waning, with haze
-      const mx = w * 0.82, my = h * 0.15;
-      ctx.save();
-      ctx.fillStyle = 'rgba(222,229,244,0.85)';
-      ctx.shadowColor = 'rgba(200,215,245,0.55)';
-      ctx.shadowBlur = 46;
-      ctx.beginPath(); ctx.arc(mx, my, 24, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-      ctx.fillStyle = 'rgba(9,11,20,0.92)';
-      ctx.beginPath(); ctx.arc(mx - 12, my - 7, 21, 0, Math.PI * 2); ctx.fill();
 
       // railing between companion and city
       ctx.strokeStyle = '#0b0c15';
@@ -241,11 +262,26 @@ export default function CanvasScene({ phase, scene }: { phase: ClipPhase; scene:
       exhale.draw(ctx);
       ctx.globalCompositeOperation = 'source-over';
 
+      // rain in front of everything, sheltered from the awning above the frame
+      if (rainy) {
+        ctx.strokeStyle = 'rgba(168,188,222,0.14)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (const d of drops) {
+          d.y += d.speed * dt;
+          if (d.y > 0.9) { d.y = -0.05; d.x = Math.random() * 1.1; }
+          const dx = d.x * w, dy = d.y * h;
+          ctx.moveTo(dx, dy);
+          ctx.lineTo(dx - 3, dy + d.len);
+        }
+        ctx.stroke();
+      }
+
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => { cancelAnimationFrame(raf); removeEventListener('resize', onResize); };
-  }, []);
+  }, [rainy]);
 
   return <canvas ref={ref} data-testid="canvas-scene" aria-label={scene}
     style={{ position: 'fixed', inset: 0, width: '100%', height: '100%' }} />;

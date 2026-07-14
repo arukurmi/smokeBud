@@ -344,6 +344,12 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+.presence-inline {
+  position: static;
+  transform: none;
+  margin-top: 1.4rem;
+}
+
 .presence::before {
   content: '';
   display: inline-block;
