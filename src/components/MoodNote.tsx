@@ -5,6 +5,7 @@ export default function MoodNote({ onSubmit }: { onSubmit: (note: string) => voi
   const [note, setNote] = useState('');
   return (
     <div className="winddown-screen">
+      <p className="eyebrow">before you go back inside</p>
       <p className="invite">how do you feel?</p>
       <input data-testid="mood-input" className="mood-input" maxLength={280}
         placeholder="one line, just for you" value={note}

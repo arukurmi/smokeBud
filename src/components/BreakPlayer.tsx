@@ -95,7 +95,9 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
         <CanvasScene phase={item.phase} scene={manifest.scene} />
       )}
       <div className="burn" aria-hidden>
-        <div className="burn-line" data-testid="burn-progress" style={{ width: `${left * 100}%` }} />
+        <div className="burn-line" data-testid="burn-progress" style={{ width: `${left * 100}%` }}>
+          <span className="burn-tip" />
+        </div>
       </div>
       <Subtitles fast={fast} />
       <AmbientAudio />

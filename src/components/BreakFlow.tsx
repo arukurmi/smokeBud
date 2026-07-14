@@ -56,6 +56,7 @@ export default function BreakFlow({ companions, favoriteId }: { companions: Comp
   );
   return (
     <div className="winddown-screen">
+      <p className="eyebrow">ash out · the door&apos;s always open</p>
       <p className="invite">see you next break.</p>
       <button className="quiet" data-testid="restart" onClick={() => setStage('pick')}>another break</button>
     </div>
