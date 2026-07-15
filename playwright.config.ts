@@ -9,7 +9,9 @@ export default defineConfig({
       'rm -f prisma/e2e.db && DATABASE_URL=file:./e2e.db npx prisma db push --skip-generate && ' +
       'E2E_TEST=1 DATABASE_URL=file:./e2e.db AUTH_SECRET=e2e-secret AUTH_TRUST_HOST=true PORT=3100 npm run dev',
     url: 'http://localhost:3100',
-    reuseExistingServer: false,
+    // Next allows one dev server per project; set PW_REUSE=1 to run against
+    // an already-running :3100 server (e.g. a prod build) instead.
+    reuseExistingServer: process.env.PW_REUSE === '1',
     timeout: 120_000,
   },
 });

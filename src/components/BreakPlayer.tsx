@@ -18,6 +18,12 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
 
   const [idx, setIdx] = useState(0);
   const [videoOk, setVideoOk] = useState(true);
+  // scene preferences (canvas mode only), remembered between breaks
+  const [orient, setOrient] = useState<'h' | 'v'>(() =>
+    typeof window !== 'undefined' && localStorage.getItem('sb-orient') === 'v' ? 'v' : 'h');
+  const [bud, setBud] = useState(() =>
+    typeof window !== 'undefined' && localStorage.getItem('sb-bud') === '1');
+  const [showHint, setShowHint] = useState(true);
   const [videoOkIdx, setVideoOkIdx] = useState(-1);
   const [preloadNext, setPreloadNext] = useState(false);
   const [fadeIn, setFadeIn] = useState(false);
@@ -41,6 +47,22 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
     const tick = setInterval(() => setElapsed((e) => e + 0.25), 250);
     return () => clearInterval(tick);
   }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowHint(false), 9000);
+    return () => clearTimeout(t);
+  }, []);
+
+  function flip() {
+    const next = orient === 'h' ? 'v' : 'h';
+    setOrient(next);
+    localStorage.setItem('sb-orient', next);
+  }
+  function toggleBud() {
+    const next = !bud;
+    setBud(next);
+    localStorage.setItem('sb-bud', next ? '1' : '0');
+  }
 
   useEffect(() => {
     if (idx >= seq.length) {
@@ -92,7 +114,19 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
           )}
         </>
       ) : (
-        <CanvasScene phase={item.phase} scene={manifest.scene} progress={1 - left} />
+        <>
+          <CanvasScene phase={item.phase} scene={manifest.scene} progress={1 - left}
+            orient={orient} bud={bud} />
+          <div className="scene-controls">
+            <button className="quiet" data-testid="orient-toggle" onClick={flip}>
+              {orient === 'h' ? 'stand it up' : 'lay it flat'}
+            </button>
+            <button className="quiet" data-testid="bud-toggle" onClick={toggleBud}>
+              {bud ? 'smoke alone' : 'invite a bud'}
+            </button>
+          </div>
+          {showHint && <p className="ash-hint">double-tap the cigarette to ash it</p>}
+        </>
       )}
       {/* the canvas cigarette shows its own burn; keep the bar for video mode */}
       {videoOk && (

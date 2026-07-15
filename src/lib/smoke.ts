@@ -9,6 +9,7 @@ export interface SmokeParticle {
   life: number;
   maxLife: number;
   size: number;
+  size0: number;
   growth: number;
   angle: number;
   spin: number;
@@ -71,6 +72,7 @@ export class SmokePlume {
   emit(x: number, y: number, count: number, t: number, vx0 = 0, vy0 = 0): void {
     for (let i = 0; i < count && this.particles.length < this.max; i++) {
       const maxLife = 9 + Math.random() * 7;
+      const size = 4 + Math.random() * 6;
       this.particles.push({
         x: x + (Math.random() - 0.5) * 3,
         y: y + (Math.random() - 0.5) * 2,
@@ -78,7 +80,8 @@ export class SmokePlume {
         vy: vy0 - (this.rise * (0.75 + Math.random() * 0.5)),
         life: 0,
         maxLife,
-        size: 5 + Math.random() * 7,
+        size,
+        size0: size,
         growth: 7 + Math.random() * 6,
         angle: Math.random() * Math.PI * 2,
         spin: (Math.random() - 0.5) * 0.3,
@@ -113,14 +116,20 @@ export class SmokePlume {
     const sprite = this.sprite;
     for (const p of this.particles) {
       const u = p.life / p.maxLife;
-      // quick fade-in, long fade-out
-      const a = this.peak * Math.min(u * 9, 1) * Math.pow(1 - u, 1.7) * alphaScale;
+      // quick fade-in, long fade-out, thinning as the puff expands so a
+      // spreading cloud never stacks into an opaque blob
+      const thin = Math.pow(p.size0 / p.size, 1.1);
+      const a = this.peak * Math.min(u * 9, 1) * Math.pow(1 - u, 1.35) * thin * alphaScale;
       if (a <= 0.003) continue;
+      // stretch along the direction of travel so the stream reads as a
+      // ribbon rather than a row of dots
+      const speed = Math.hypot(p.vx, p.vy);
+      const stretch = 1 + Math.min(1.1, speed / 110);
       ctx.save();
       ctx.globalAlpha = a;
       ctx.translate(p.x, p.y);
-      ctx.rotate(p.angle);
-      ctx.drawImage(sprite, -p.size, -p.size, p.size * 2, p.size * 2);
+      ctx.rotate(Math.atan2(p.vy, p.vx) + p.angle * 0.06);
+      ctx.drawImage(sprite, -p.size * stretch, -p.size, p.size * 2 * stretch, p.size * 2);
       ctx.restore();
     }
   }
