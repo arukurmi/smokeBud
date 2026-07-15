@@ -119,10 +119,10 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
             orient={orient} bud={bud} />
           <div className="scene-controls">
             <button className="quiet" data-testid="orient-toggle" onClick={flip}>
-              {orient === 'h' ? 'stand it up' : 'lay it flat'}
+              {orient === 'h' ? 'vertical' : 'horizontal'}
             </button>
             <button className="quiet" data-testid="bud-toggle" onClick={toggleBud}>
-              {bud ? 'smoke alone' : 'invite a bud'}
+              {bud ? 'remove companion' : 'add a companion'}
             </button>
           </div>
           {showHint && <p className="ash-hint">double-tap the cigarette to ash it</p>}

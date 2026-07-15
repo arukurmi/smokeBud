@@ -31,6 +31,15 @@ body {
   color: var(--paper);
   font-family: var(--serif);
   -webkit-font-smoothing: antialiased;
+  /* double-clicks are a gesture here (tap the ash) — never a text selection */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 ::selection {

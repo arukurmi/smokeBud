@@ -1,11 +1,11 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import type { ClipPhase } from '@/lib/companions';
-import { SmokePlume, SmokeThread, fitCanvas } from '@/lib/smoke';
+import { SmokePlume, SmokeThread, fitCanvas, vnoise } from '@/lib/smoke';
 
 // The built-in scene: one big cigarette burning down in real time — the
 // cigarette IS the session progress. It can lie flat or stand upright, a
-// quiet bud can smoke along off to the side, and a double-tap taps the ash.
+// companion can smoke along off to the side, and a double-tap taps the ash.
 
 const rnd = (i: number) => {
   const s = Math.sin(i * 127.1 + 311.7) * 43758.5453;
@@ -15,43 +15,68 @@ const rnd = (i: number) => {
 interface Flake { x: number; y: number; vx: number; vy: number; rot: number; vr: number; size: number; a: number }
 interface Spark { x: number; y: number; vx: number; vy: number; life: number }
 
-function buildSkyline(w: number, h: number): HTMLCanvasElement {
+// Night backdrop: gradient sky falling into two soft noise ridges of a far
+// city, its lights scattered as bokeh dots rather than traced buildings.
+function buildBackdrop(w: number, h: number): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
   const ctx = c.getContext('2d')!;
   const sky = ctx.createLinearGradient(0, 0, 0, h);
   sky.addColorStop(0, '#04050b');
-  sky.addColorStop(0.6, '#090b14');
-  sky.addColorStop(0.85, '#100d0b');
-  sky.addColorStop(1, '#040407');
+  sky.addColorStop(0.55, '#080a13');
+  sky.addColorStop(0.8, '#0d0c10');
+  sky.addColorStop(1, '#030304');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, w, h);
 
-  const horizon = h * 0.93;
-  const haze = ctx.createLinearGradient(0, horizon - h * 0.08, 0, horizon);
-  haze.addColorStop(0, 'rgba(255,160,80,0)');
-  haze.addColorStop(1, 'rgba(255,160,80,0.045)');
+  // warm haze where the far city glows against the sky
+  const horizon = h * 0.85;
+  const haze = ctx.createLinearGradient(0, horizon - h * 0.09, 0, horizon + h * 0.03);
+  haze.addColorStop(0, 'rgba(255,150,70,0)');
+  haze.addColorStop(0.75, 'rgba(255,150,70,0.05)');
+  haze.addColorStop(1, 'rgba(255,150,70,0.02)');
   ctx.fillStyle = haze;
-  ctx.fillRect(0, horizon - h * 0.08, w, h * 0.08);
+  ctx.fillRect(0, horizon - h * 0.09, w, h * 0.12);
 
-  ctx.fillStyle = '#040510';
-  let x = 0;
-  let i = 0;
-  while (x < w) {
-    const bw = 46 + rnd(i) * 80;
-    const bh = h * (0.015 + rnd(i + 40) * 0.045);
-    ctx.fillRect(x, horizon - bh, bw + 4, bh + h * 0.07);
-    for (let k = 0; k < 3; k++) {
-      const seed = i * 17.3 + k * 5.1;
-      if (rnd(seed) > 0.78) {
-        ctx.fillStyle = `rgba(255,196,120,${0.05 + rnd(seed + 1) * 0.08})`;
-        ctx.fillRect(x + 6 + rnd(seed + 2) * (bw - 12), horizon - bh + 4 + rnd(seed + 3) * Math.max(2, bh - 8), 2.5, 3.5);
-        ctx.fillStyle = '#040510';
-      }
+  // two ridges with smooth noise tops, low contrast against the sky
+  const ridges: Array<[number, number, string, string, number]> = [
+    [h * 0.855, h * 0.028, 'rgba(11,13,22,0.9)', 'rgba(5,6,11,0.9)', 3.1],
+    [h * 0.895, h * 0.04, '#050610', '#020205', 7.7],
+  ];
+  for (const [base, amp, top, bottom, seed] of ridges) {
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (let x = 0; x <= w; x += 6) {
+      ctx.lineTo(x, base - vnoise(x * 0.0038 + seed * 10, seed) * amp);
     }
-    x += bw + 6;
-    i++;
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, base - amp, 0, h);
+    g.addColorStop(0, top);
+    g.addColorStop(1, bottom);
+    ctx.fillStyle = g;
+    ctx.fill();
+  }
+
+  // the city as scattered lights, warm with a few cool ones
+  for (let i = 0; i < 64; i++) {
+    const lx = rnd(i * 13) * w;
+    const ly = h * (0.862 + rnd(i * 13 + 5) * 0.085);
+    const warm = rnd(i * 13 + 9) > 0.22;
+    const a = 0.04 + rnd(i * 13 + 2) * 0.16;
+    const r = 0.6 + rnd(i * 13 + 7) * 1.3;
+    ctx.fillStyle = warm ? `rgba(255,190,115,${a})` : `rgba(150,180,250,${a * 0.8})`;
+    ctx.beginPath();
+    ctx.arc(lx, ly, r, 0, Math.PI * 2);
+    ctx.fill();
+    if (rnd(i * 13 + 3) > 0.86) { // a few lights bloom softly
+      const g = ctx.createRadialGradient(lx, ly, 0, lx, ly, r * 7);
+      g.addColorStop(0, `rgba(255,190,115,${a * 0.5})`);
+      g.addColorStop(1, 'rgba(255,190,115,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(lx, ly, r * 7, 0, Math.PI * 2); ctx.fill();
+    }
   }
   return c;
 }
@@ -68,6 +93,10 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
   const phaseStartTRef = useRef(0);
   const tRef = useRef(0);
   const progressRef = useRef(progress);
+  // orientation/companion live in refs so toggling them never restarts the
+  // scene (a full re-init used to flash the whole canvas)
+  const orientRef = useRef(orient);
+  const budRef = useRef(bud);
 
   useEffect(() => {
     if (phaseRef.current !== phase) {
@@ -77,6 +106,8 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
   }, [phase]);
 
   useEffect(() => { progressRef.current = progress; }, [progress]);
+  useEffect(() => { orientRef.current = orient; }, [orient]);
+  useEffect(() => { budRef.current = bud; }, [bud]);
 
   const rainy = /rain/i.test(scene);
 
@@ -84,10 +115,10 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
     const canvas = ref.current!;
     const ctx = canvas.getContext('2d')!;
     let { w, h } = fitCanvas(canvas, ctx);
-    let skyline = buildSkyline(w, h);
+    let backdrop = buildBackdrop(w, h);
     const onResize = () => {
       ({ w, h } = fitCanvas(canvas, ctx));
-      skyline = buildSkyline(w, h);
+      backdrop = buildBackdrop(w, h);
     };
     addEventListener('resize', onResize);
 
@@ -100,16 +131,9 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         }))
       : [];
 
-    const plume = new SmokePlume({ maxParticles: 320, rise: 44, drift: 8, peak: 0.1 });
+    const plume = new SmokePlume({ maxParticles: 380, rise: 30, drift: 10, peak: 0.16 });
     const thread = new SmokeThread({ rise: 50, turb: 1, peak: 0.4, length: 96 });
-    const budPlume = bud ? new SmokePlume({ maxParticles: 130, rise: 30, drift: 26, peak: 0.08 }) : null;
-    // foreground bokeh for a hint of depth-of-field
-    const orbs = Array.from({ length: 4 }, (_, i) => ({
-      x: rnd(i * 31) , y: 0.25 + rnd(i * 31 + 7) * 0.6,
-      r: 46 + rnd(i * 31 + 3) * 90,
-      ph: rnd(i * 31 + 5) * Math.PI * 2,
-      warm: i % 2 === 0,
-    }));
+    const budPlume = new SmokePlume({ maxParticles: 130, rise: 26, drift: 26, peak: 0.12 });
     const flakes: Flake[] = [];
     const sparks: Spark[] = [];
     let ashLen = 6;
@@ -117,13 +141,12 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
     let last = performance.now();
 
     // ---- double-tap anywhere near the cigarette to tap the ash off ----
-    const geom = { x0: 0, y0: 0, x1: 0, y1: 0, thick: 30 }; // world-space axis segment
+    const geom = { x0: 0, y0: 0, x1: 0, y1: 0, thick: 30 };
     let dropAsh = false;
     let lastTapT = 0, lastTapX = 0, lastTapY = 0;
     const onPointerDown = (e: PointerEvent) => {
       const now = performance.now();
       if (now - lastTapT < 400 && Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 90) {
-        // distance from tap to the cigarette's axis segment
         const { x0, y0, x1, y1, thick } = geom;
         const dx = x1 - x0, dy = y1 - y0;
         const len2 = dx * dx + dy * dy || 1;
@@ -146,7 +169,7 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       const sincePhase = t - phaseStartTRef.current;
       const p = Math.min(1, Math.max(0, progressRef.current));
 
-      ctx.drawImage(skyline, 0, 0);
+      ctx.drawImage(backdrop, 0, 0);
 
       // cinematic grade: cool wash from above, warm backlight behind center
       const cool = ctx.createLinearGradient(0, 0, 0, h * 0.5);
@@ -162,22 +185,32 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       ctx.fillRect(0, 0, w, h);
 
       if (!rainy) {
-        for (let i = 0; i < 42; i++) {
+        // sparse stars, three sizes
+        for (let i = 0; i < 30; i++) {
           const sx = rnd(i * 3) * w;
-          const sy = rnd(i * 3 + 1) * h * 0.45;
-          const tw = 0.05 + 0.14 * Math.abs(Math.sin(t * (0.3 + rnd(i) * 0.5) + i));
-          ctx.fillStyle = `rgba(210,220,240,${tw})`;
-          ctx.fillRect(sx, sy, 1.4, 1.4);
+          const sy = rnd(i * 3 + 1) * h * 0.42;
+          const tw = 0.04 + 0.1 * Math.abs(Math.sin(t * (0.25 + rnd(i) * 0.4) + i));
+          const sr = rnd(i * 3 + 2) > 0.85 ? 1.1 : 0.7;
+          ctx.fillStyle = `rgba(212,222,242,${tw})`;
+          ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
         }
-        const mx = w * 0.84, my = h * 0.14;
-        ctx.save();
-        ctx.fillStyle = 'rgba(222,229,244,0.85)';
-        ctx.shadowColor = 'rgba(200,215,245,0.55)';
-        ctx.shadowBlur = 46;
-        ctx.beginPath(); ctx.arc(mx, my, 22, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-        ctx.fillStyle = 'rgba(9,11,20,0.92)';
-        ctx.beginPath(); ctx.arc(mx - 11, my - 6, 19, 0, Math.PI * 2); ctx.fill();
+        // a clean full moon with a layered halo
+        const mx = w * 0.79, my = h * 0.15, mr = 15;
+        let g = ctx.createRadialGradient(mx, my, 0, mx, my, mr * 8);
+        g.addColorStop(0, 'rgba(200,216,248,0.06)');
+        g.addColorStop(1, 'rgba(200,216,248,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(mx, my, mr * 8, 0, Math.PI * 2); ctx.fill();
+        g = ctx.createRadialGradient(mx, my, 0, mx, my, mr * 2.4);
+        g.addColorStop(0, 'rgba(214,226,250,0.18)');
+        g.addColorStop(1, 'rgba(214,226,250,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(mx, my, mr * 2.4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#dfe7f6';
+        ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(176,190,216,0.5)'; // maria, barely
+        ctx.beginPath(); ctx.arc(mx - mr * 0.3, my - mr * 0.15, mr * 0.32, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(mx + mr * 0.28, my + mr * 0.3, mr * 0.2, 0, Math.PI * 2); ctx.fill();
       } else {
         const cloud = ctx.createLinearGradient(0, 0, 0, h * 0.42);
         const ca = 0.5 + 0.06 * Math.sin(t * 0.2);
@@ -189,12 +222,11 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       }
 
       // ---- cigarette geometry (local coords: tip at 0, filter at L) ----
-      const vertical = orient === 'v';
+      const vertical = orientRef.current === 'v';
       const L = vertical ? Math.min(h * 0.62, 560) : Math.min(w * 0.72, 920);
       const cigH = Math.max(24, Math.min(36, (vertical ? h : w) * 0.026));
       const originX = vertical ? w * 0.5 : (w - L) / 2;
       const originY = vertical ? h * 0.5 - L / 2 : h * 0.54;
-      // local (lx,ly) → world
       const toWorld = (lx: number, ly: number): [number, number] =>
         vertical ? [originX - ly, originY + lx] : [originX + lx, originY + ly];
 
@@ -255,15 +287,10 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
 
       // ---- draw the cigarette in local space ----
       ctx.save();
-      if (vertical) {
-        ctx.translate(originX, originY);
-        ctx.rotate(Math.PI / 2);
-      } else {
-        ctx.translate(originX, originY);
-      }
+      ctx.translate(originX, originY);
+      if (vertical) ctx.rotate(Math.PI / 2);
       const yT = -cigH / 2;
 
-      // ash: ragged gray tail clinging behind the ember, smooth crinkle
       const ashStart = Math.max(-cigH * 2, emberL - ashLen);
       if (emberL > ashStart) {
         const jit = (ax: number, seed: number) =>
@@ -287,7 +314,6 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
           ctx.lineTo(ax + 1.5, yT + cigH * (0.66 + rnd(Math.floor(ax) + 9) * 0.18));
           ctx.stroke();
         }
-        // faint inner glow where ash meets the ember
         const ashGlow = ctx.createLinearGradient(emberL - cigH * 0.7, 0, emberL, 0);
         ashGlow.addColorStop(0, 'rgba(255,90,25,0)');
         ashGlow.addColorStop(1, `rgba(255,90,25,${0.3 * emberGlow})`);
@@ -295,7 +321,6 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         ctx.fillRect(emberL - cigH * 0.7, yT + cigH * 0.1, cigH * 0.7, cigH * 0.8);
       }
 
-      // paper with cylinder shading
       const paperGrad = ctx.createLinearGradient(0, yT, 0, yT + cigH);
       paperGrad.addColorStop(0, '#b9b2a4');
       paperGrad.addColorStop(0.28, '#f4ecdc');
@@ -303,7 +328,6 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       paperGrad.addColorStop(1, '#948d7f');
       ctx.fillStyle = paperGrad;
       ctx.fillRect(emberL, yT, filterX - bandW - emberL, cigH);
-      // paper seam and a faint brand ring near the band
       ctx.strokeStyle = 'rgba(140,130,112,0.28)';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -318,7 +342,6 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         ctx.lineTo(filterX - bandW - off, yT + cigH - 1.5);
         ctx.stroke();
       }
-      // warm light spilling from the ember onto the paper
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       const spill = ctx.createLinearGradient(emberL, 0, emberL + cigH * 2.4, 0);
@@ -327,7 +350,6 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       ctx.fillStyle = spill;
       ctx.fillRect(emberL, yT + 1.5, cigH * 2.4, cigH - 3);
       ctx.restore();
-      // singe creeping ahead of the ember
       const singe = ctx.createLinearGradient(emberL, 0, emberL + cigH * 1.1, 0);
       singe.addColorStop(0, 'rgba(55,28,14,0.9)');
       singe.addColorStop(0.35, 'rgba(115,70,32,0.4)');
@@ -335,7 +357,6 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       ctx.fillStyle = singe;
       ctx.fillRect(emberL, yT, cigH * 1.1, cigH);
 
-      // gold band + cork filter
       ctx.fillStyle = '#b8913f';
       ctx.fillRect(filterX - bandW, yT, bandW, cigH);
       ctx.fillStyle = 'rgba(255,235,180,0.35)';
@@ -356,11 +377,9 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         ctx.fillRect(fx, fy, 1.6, 1.2);
       }
 
-      // ---- the burn front, rebuilt: char ring, molten core, glow blobs ----
-      // charred ring right at the ash boundary
+      // burn front: char ring, molten core, breathing glow blobs
       ctx.fillStyle = 'rgba(22,12,8,0.85)';
       ctx.fillRect(emberL - 2.5, yT + 1, 4, cigH - 2);
-      // soft outer glow behind the front
       ctx.save();
       ctx.shadowColor = 'rgba(255,110,35,0.9)';
       ctx.shadowBlur = 16 + 38 * emberGlow;
@@ -369,7 +388,6 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       ctx.roundRect(emberL - cigH * 0.34, yT + 1.5, cigH * 0.5, cigH - 3, 3);
       ctx.fill();
       ctx.restore();
-      // molten blobs breathing across the thickness, additive
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       for (let k = 0; k < 4; k++) {
@@ -425,14 +443,14 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         ctx.restore();
       }
 
-      // the bud: someone smoking along, angled away like in a smoke room
-      if (bud && budPlume) {
-        const gy = h * 0.94;
-        const H = Math.min(h * 0.46, 420);
-        const bx = w * 0.84;
-        const hipY = gy - H * 0.5, shY = gy - H * 0.78, headY = gy - H * 0.868, headR = H * 0.058;
+      // the companion: hooded, softly shaded, facing ~20° away
+      if (budRef.current) {
+        const gy = h * 0.93;
+        const H = Math.min(h * 0.44, 400);
+        const bx = w * 0.875;
+        const hipY = gy - H * 0.5, shY = gy - H * 0.77, headY = gy - H * 0.858, headR = H * 0.052;
         const bcyc = ((t + 4) % 11) / 11;
-        const mouth = { x: bx + H * 0.075, y: headY + headR * 0.4 };
+        const mouth = { x: bx + H * 0.075, y: headY + headR * 0.42 };
         const rest = { x: bx + H * 0.115, y: hipY - H * 0.04 };
         let hand = { ...rest };
         let budGlow = 0.4 + 0.1 * Math.sin(t * 0.8 + 2);
@@ -446,39 +464,79 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
           const u = (bcyc - 0.24) / 0.09;
           hand = { x: ease(mouth.x, rest.x, u), y: ease(mouth.y, rest.y, u) };
         } else if (bcyc < 0.5 && Math.random() < 0.5) {
-          // exhale, blown away from you
           budPlume.emit(mouth.x + 6, mouth.y, 1, t, 46, 8);
         }
-        for (const [fill, dx] of [['rgba(140,170,230,0.08)', 3], ['#040409', 0]] as const) {
-          ctx.fillStyle = fill;
-          ctx.strokeStyle = fill;
-          ctx.lineCap = 'round';
-          ctx.lineWidth = H * 0.082;
-          ctx.beginPath(); ctx.moveTo(bx + dx - H * 0.018, hipY); ctx.lineTo(bx + dx - H * 0.05, gy - 3); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(bx + dx + H * 0.032, hipY); ctx.lineTo(bx + dx + H * 0.078, gy - 3); ctx.stroke();
-          ctx.beginPath(); // torso, back bowed toward us — he faces away
-          ctx.moveTo(bx + dx - H * 0.085, hipY + H * 0.04);
-          ctx.bezierCurveTo(bx + dx - H * 0.125, shY + H * 0.06, bx + dx - H * 0.1, shY - H * 0.005, bx + dx - H * 0.015, shY - H * 0.03);
-          ctx.bezierCurveTo(bx + dx + H * 0.065, shY - H * 0.045, bx + dx + H * 0.105, shY + H * 0.03, bx + dx + H * 0.098, hipY + H * 0.02);
-          ctx.closePath(); ctx.fill();
-          // neck, then the head turned ~20° away
-          ctx.beginPath();
-          ctx.roundRect(bx + dx - headR * 0.35, headY + headR * 0.4, headR * 0.95, H * 0.075, headR * 0.3);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.ellipse(bx + dx + H * 0.02, headY, headR * 0.86, headR, 0.34, 0, Math.PI * 2);
-          ctx.fill();
-          // smoking arm: shoulder → elbow out to the side → hand
-          const elbow = { x: bx + dx + H * 0.135, y: (shY + hand.y) / 2 + H * 0.05 };
-          ctx.lineWidth = H * 0.05;
-          ctx.beginPath();
-          ctx.moveTo(bx + dx + H * 0.055, shY + H * 0.015);
-          ctx.quadraticCurveTo(elbow.x, elbow.y, hand.x + dx, hand.y);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.arc(hand.x + dx, hand.y, H * 0.028, 0, Math.PI * 2);
-          ctx.fill();
-        }
+
+        // ground shadow so he stands IN the scene, not on top of it
+        const shadow = ctx.createRadialGradient(bx, gy + 4, 0, bx, gy + 4, H * 0.22);
+        shadow.addColorStop(0, 'rgba(0,0,0,0.5)');
+        shadow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = shadow;
+        ctx.beginPath();
+        ctx.ellipse(bx, gy + 4, H * 0.22, H * 0.035, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // legs: dark denim, slight stance
+        const denim = ctx.createLinearGradient(bx - H * 0.1, 0, bx + H * 0.1, 0);
+        denim.addColorStop(0, '#191a22');
+        denim.addColorStop(1, '#101017');
+        ctx.strokeStyle = denim;
+        ctx.lineCap = 'round';
+        ctx.lineWidth = H * 0.078;
+        ctx.beginPath(); ctx.moveTo(bx - H * 0.02, hipY); ctx.lineTo(bx - H * 0.052, gy - H * 0.015); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(bx + H * 0.033, hipY); ctx.lineTo(bx + H * 0.08, gy - H * 0.015); ctx.stroke();
+        // shoes
+        ctx.fillStyle = '#0b0b10';
+        ctx.beginPath(); ctx.ellipse(bx - H * 0.045, gy - H * 0.006, H * 0.045, H * 0.016, -0.1, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(bx + H * 0.09, gy - H * 0.006, H * 0.045, H * 0.016, 0.1, 0, Math.PI * 2); ctx.fill();
+
+        // jacket: rounded torso with soft shading, warm rim on the city side
+        const jacket = ctx.createLinearGradient(bx - H * 0.12, 0, bx + H * 0.12, 0);
+        jacket.addColorStop(0, '#232128');
+        jacket.addColorStop(0.55, '#17161c');
+        jacket.addColorStop(1, '#0e0d12');
+        ctx.fillStyle = jacket;
+        ctx.beginPath();
+        ctx.moveTo(bx - H * 0.09, hipY + H * 0.05);
+        ctx.bezierCurveTo(bx - H * 0.13, shY + H * 0.05, bx - H * 0.105, shY - H * 0.01, bx - H * 0.015, shY - H * 0.035);
+        ctx.bezierCurveTo(bx + H * 0.07, shY - H * 0.05, bx + H * 0.112, shY + H * 0.03, bx + H * 0.104, hipY + H * 0.03);
+        ctx.closePath();
+        ctx.fill();
+        // warm rim light on his left side (the ember/city side)
+        ctx.strokeStyle = 'rgba(255,150,80,0.14)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(bx - H * 0.088, hipY + H * 0.04);
+        ctx.bezierCurveTo(bx - H * 0.128, shY + H * 0.05, bx - H * 0.103, shY - H * 0.008, bx - H * 0.013, shY - H * 0.033);
+        ctx.stroke();
+
+        // collar joining torso to head, hood snug around the skull,
+        // and just a sliver of face catching warm light on the far side
+        ctx.fillStyle = '#1a191f';
+        ctx.beginPath();
+        ctx.roundRect(bx - headR * 0.9, headY + headR * 0.55, headR * 1.9, H * 0.09, headR * 0.5);
+        ctx.fill();
+        ctx.fillStyle = '#1c1b21';
+        ctx.beginPath();
+        ctx.ellipse(bx, headY, headR * 1.12, headR * 1.18, 0.24, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#241d14'; // face, mostly turned away
+        ctx.beginPath();
+        ctx.ellipse(bx + headR * 0.62, headY + headR * 0.12, headR * 0.5, headR * 0.78, 0.3, -1.2, 1.6);
+        ctx.fill();
+
+        // smoking arm: jacket sleeve, elbow out, hand visible
+        ctx.strokeStyle = '#1a1920';
+        ctx.lineWidth = H * 0.048;
+        ctx.beginPath();
+        ctx.moveTo(bx + H * 0.055, shY + H * 0.015);
+        ctx.quadraticCurveTo(bx + H * 0.14, (shY + hand.y) / 2 + H * 0.05, hand.x, hand.y);
+        ctx.stroke();
+        ctx.fillStyle = '#2a2016';
+        ctx.beginPath();
+        ctx.arc(hand.x, hand.y, H * 0.024, 0, Math.PI * 2);
+        ctx.fill();
+
         // his cigarette + ember
         const btip = { x: hand.x + H * 0.045, y: hand.y - H * 0.008 };
         ctx.strokeStyle = 'rgba(228,220,206,0.75)';
@@ -490,35 +548,39 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         ctx.beginPath(); ctx.arc(btip.x, btip.y, 1.9 + budGlow, 0, Math.PI * 2); ctx.fill();
         ctx.shadowBlur = 0;
         if (Math.random() < 0.12) budPlume.emit(btip.x, btip.y - 3, 1, t);
-        budPlume.step(dt, t);
       }
+      budPlume.step(dt, t);
 
-      // smoke: a laminar thread off the ember that tears into curls, then
-      // hands its tail to the sprite plume for the dispersed cloud phase
+      // smoke: laminar thread off the ember, torn by noise, handed to the
+      // sprite plume — two puffs per hand-off for a fuller billow
       const intensity = ph === 'winddown'
         ? Math.max(0.25, 1 - sincePhase * 0.06)
         : dragging ? 1.4 : 1;
       const tail = thread.update(dt, t, emberWX, emberWY - cigH * 0.5 - 2, intensity);
-      if (tail && Math.random() < 0.85 * intensity) {
-        plume.emit(tail.x, tail.y, 1, t, tail.vx * 0.6, -14);
+      if (tail) {
+        plume.emit(tail.x, tail.y, 1, t, tail.vx * 0.6, -12);
+        if (Math.random() < 0.5 * intensity) {
+          plume.emit(tail.x + (Math.random() - 0.5) * 14, tail.y - 6, 1, t, tail.vx * 0.4, -8);
+        }
       }
       plume.step(dt, t);
       ctx.globalCompositeOperation = 'screen';
       thread.draw(ctx, dragging ? emberGlow : emberGlow * 0.3);
       plume.draw(ctx);
-      if (bud && budPlume) budPlume.draw(ctx);
+      budPlume.draw(ctx);
       ctx.globalCompositeOperation = 'source-over';
 
       // drifting foreground bokeh, almost subliminal
-      for (const o of orbs) {
-        const ox = (o.x * w + Math.sin(t * 0.05 + o.ph) * 40 + w) % w;
-        const oy = o.y * h + Math.cos(t * 0.04 + o.ph * 2) * 26;
-        const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, o.r);
-        const col = o.warm ? '255,170,90' : '140,170,240';
+      for (let i = 0; i < 4; i++) {
+        const ox = ((rnd(i * 31) * w) + Math.sin(t * 0.05 + rnd(i * 31 + 5) * 6) * 40 + w) % w;
+        const oy = (0.25 + rnd(i * 31 + 7) * 0.6) * h + Math.cos(t * 0.04 + i * 2) * 26;
+        const or = 46 + rnd(i * 31 + 3) * 90;
+        const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, or);
+        const col = i % 2 === 0 ? '255,170,90' : '140,170,240';
         g.addColorStop(0, `rgba(${col},0.028)`);
         g.addColorStop(1, `rgba(${col},0)`);
         ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(ox, oy, o.r, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ox, oy, or, 0, Math.PI * 2); ctx.fill();
       }
 
       if (rainy) {
@@ -543,8 +605,8 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       removeEventListener('resize', onResize);
       canvas.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [rainy, orient, bud]);
+  }, [rainy]);
 
   return <canvas ref={ref} data-testid="canvas-scene" aria-label={scene}
-    style={{ position: 'fixed', inset: 0, width: '100%', height: '100%' }} />;
+    style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', touchAction: 'manipulation' }} />;
 }

@@ -16,21 +16,38 @@ export interface SmokeParticle {
   phase: number;
 }
 
-/** Pre-render a soft radial puff so per-frame draws are one drawImage call. */
-export function makeSmokeSprite(size = 128, core = 'rgba(226,231,240,0.5)'): HTMLCanvasElement {
+/** Pre-render a textured puff — dozens of overlapping blobs under a soft
+ *  falloff mask, so each particle looks like cloud material rather than a
+ *  perfect circle. One drawImage per particle at runtime. */
+export function makeSmokeSprite(size = 160): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d')!;
   const half = size / 2;
-  const g = ctx.createRadialGradient(half, half, 0, half, half, half);
-  g.addColorStop(0, core);
-  g.addColorStop(0.4, 'rgba(206,212,224,0.2)');
-  g.addColorStop(0.75, 'rgba(188,195,208,0.06)');
-  g.addColorStop(1, 'rgba(180,188,202,0)');
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(half, half, half, 0, Math.PI * 2);
-  ctx.fill();
+  for (let i = 0; i < 36; i++) {
+    const r = size * (0.07 + Math.random() * 0.15);
+    const dist = (half - r) * Math.pow(Math.random(), 0.72);
+    const ang = Math.random() * Math.PI * 2;
+    const x = half + Math.cos(ang) * dist;
+    const y = half + Math.sin(ang) * dist;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(219,226,238,0.13)');
+    g.addColorStop(0.6, 'rgba(206,214,228,0.05)');
+    g.addColorStop(1, 'rgba(200,208,222,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // fade the cloud toward the sprite edge
+  ctx.globalCompositeOperation = 'destination-in';
+  const mask = ctx.createRadialGradient(half, half, 0, half, half, half);
+  mask.addColorStop(0, 'rgba(0,0,0,1)');
+  mask.addColorStop(0.55, 'rgba(0,0,0,0.75)');
+  mask.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = mask;
+  ctx.fillRect(0, 0, size, size);
+  ctx.globalCompositeOperation = 'source-over';
   return c;
 }
 
@@ -207,29 +224,33 @@ export class SmokeThread {
     return this.pts.length > this.maxLen ? this.pts.pop()! : null;
   }
 
-  /** Tapered, per-segment strokes; call under 'screen' composite. */
+  /** Tapered strokes in two passes — a soft wide halo under a bright core —
+   *  so the filament has volume instead of reading as a hard line. Call
+   *  under 'screen' composite. */
   draw(ctx: CanvasRenderingContext2D, glow = 0): void {
     const n = this.pts.length;
     if (n < 3) return;
     ctx.lineCap = 'round';
-    for (let i = 1; i < n - 1; i++) {
-      const p = this.pts[i];
-      const u = i / this.maxLen;
-      const head = Math.min(1, i / 6); // ease in right at the ember
-      const a = this.peak * head * Math.pow(1 - u, 0.85);
-      if (a <= 0.004) continue;
-      // bluish side-stream near the source, warming with ember flare
-      const r = 168 + u * 42 + glow * (1 - u) * 60;
-      const g = 182 + u * 30 + glow * (1 - u) * 24;
-      const b = 212 + u * 16;
-      ctx.strokeStyle = `rgba(${r | 0},${g | 0},${b | 0},${a})`;
-      ctx.lineWidth = 1.6 + u * 8;
-      ctx.beginPath();
-      const m = this.pts[i - 1];
-      ctx.moveTo((m.x + p.x) / 2, (m.y + p.y) / 2);
-      const q = this.pts[i + 1];
-      ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
-      ctx.stroke();
+    for (const [widthMul, alphaMul] of [[3.1, 0.28], [1, 1]] as const) {
+      for (let i = 1; i < n - 1; i++) {
+        const p = this.pts[i];
+        const u = i / this.maxLen;
+        const head = Math.min(1, i / 6); // ease in right at the ember
+        const a = this.peak * head * Math.pow(1 - u, 0.85) * alphaMul;
+        if (a <= 0.004) continue;
+        // bluish side-stream near the source, warming with ember flare
+        const r = 168 + u * 42 + glow * (1 - u) * 60;
+        const g = 182 + u * 30 + glow * (1 - u) * 24;
+        const b = 212 + u * 16;
+        ctx.strokeStyle = `rgba(${r | 0},${g | 0},${b | 0},${a})`;
+        ctx.lineWidth = (1.5 + u * 8) * widthMul;
+        ctx.beginPath();
+        const m = this.pts[i - 1];
+        ctx.moveTo((m.x + p.x) / 2, (m.y + p.y) / 2);
+        const q = this.pts[i + 1];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
+        ctx.stroke();
+      }
     }
   }
 }
