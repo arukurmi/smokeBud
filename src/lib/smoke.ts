@@ -107,7 +107,7 @@ export class SmokePlume {
   /** Spawn `count` puffs at the source; optional initial velocity for exhales. */
   emit(x: number, y: number, count: number, t: number, vx0 = 0, vy0 = 0): void {
     for (let i = 0; i < count && this.particles.length < this.max; i++) {
-      const maxLife = 9 + Math.random() * 7;
+      const maxLife = 7 + Math.random() * 5;
       const size = 4 + Math.random() * 6;
       this.particles.push({
         x: x + (Math.random() - 0.5) * 3,
@@ -256,8 +256,8 @@ export class SmokeThread {
 }
 
 /** Scale a canvas for the device pixel ratio; returns CSS-pixel dimensions. */
-export function fitCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): { w: number; h: number } {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+export function fitCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, maxDpr = 2): { w: number; h: number } {
+  const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
   const w = window.innerWidth;
   const h = window.innerHeight;
   canvas.width = Math.round(w * dpr);

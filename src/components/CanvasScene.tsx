@@ -114,11 +114,22 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
   useEffect(() => {
     const canvas = ref.current!;
     const ctx = canvas.getContext('2d')!;
-    let { w, h } = fitCanvas(canvas, ctx);
+    // cap DPR at 1.5: a full-retina buffer makes heavy smoke frames stutter
+    let { w, h } = fitCanvas(canvas, ctx, 1.5);
     let backdrop = buildBackdrop(w, h);
+    // smoke renders at half resolution — it's all soft gradients, so the
+    // upscale is invisible but the fill cost drops ~4x
+    const smokeCv = document.createElement('canvas');
+    const sctx = smokeCv.getContext('2d')!;
+    const fitSmoke = () => {
+      smokeCv.width = Math.ceil(w / 2);
+      smokeCv.height = Math.ceil(h / 2);
+    };
+    fitSmoke();
     const onResize = () => {
-      ({ w, h } = fitCanvas(canvas, ctx));
+      ({ w, h } = fitCanvas(canvas, ctx, 1.5));
       backdrop = buildBackdrop(w, h);
+      fitSmoke();
     };
     addEventListener('resize', onResize);
 
@@ -131,9 +142,9 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         }))
       : [];
 
-    const plume = new SmokePlume({ maxParticles: 380, rise: 30, drift: 10, peak: 0.16 });
+    const plume = new SmokePlume({ maxParticles: 240, rise: 30, drift: 10, peak: 0.18 });
     const thread = new SmokeThread({ rise: 50, turb: 1, peak: 0.4, length: 96 });
-    const budPlume = new SmokePlume({ maxParticles: 130, rise: 26, drift: 26, peak: 0.12 });
+    const budPlume = new SmokePlume({ maxParticles: 90, rise: 26, drift: -16, peak: 0.12 });
     const flakes: Flake[] = [];
     const sparks: Spark[] = [];
     let ashLen = 6;
@@ -264,8 +275,8 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       ctx.fillRect(emberWX - cigH * 9, emberWY - cigH * 9, cigH * 18, cigH * 18);
 
       // ash growth; a tap (or its own weight) breaks it off
-      ashLen += dt * (dragging ? 6 : 2.4);
-      const maxAsh = cigH * (1.6 + rnd(Math.floor(t / 7)) * 1.2);
+      ashLen += dt * (dragging ? 3.6 : 1.6);
+      const maxAsh = cigH * (0.85 + rnd(Math.floor(t / 7)) * 0.65);
       if (ashLen > maxAsh || dropAsh) {
         const n = Math.min(18, 4 + Math.floor(ashLen / 4));
         for (let i = 0; i < n; i++) {
@@ -382,7 +393,7 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       ctx.fillRect(emberL - 2.5, yT + 1, 4, cigH - 2);
       ctx.save();
       ctx.shadowColor = 'rgba(255,110,35,0.9)';
-      ctx.shadowBlur = 16 + 38 * emberGlow;
+      ctx.shadowBlur = 12 + 22 * emberGlow;
       ctx.fillStyle = `rgba(150,35,8,${0.75 * emberGlow + 0.1})`;
       ctx.beginPath();
       ctx.roundRect(emberL - cigH * 0.34, yT + 1.5, cigH * 0.5, cigH - 3, 3);
@@ -443,109 +454,167 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         ctx.restore();
       }
 
-      // the companion: hooded, softly shaded, facing ~20° away
+      // the companion: a cozy little mascot with an actual face, drawn like
+      // a friendly brand illustration — big head, beanie, blush, dot eyes
       if (budRef.current) {
         const gy = h * 0.93;
-        const H = Math.min(h * 0.44, 400);
+        const H = Math.min(h * 0.4, 380);
         const bx = w * 0.875;
-        const hipY = gy - H * 0.5, shY = gy - H * 0.77, headY = gy - H * 0.858, headR = H * 0.052;
-        const bcyc = ((t + 4) % 11) / 11;
-        const mouth = { x: bx + H * 0.075, y: headY + headR * 0.42 };
-        const rest = { x: bx + H * 0.115, y: hipY - H * 0.04 };
+        const bodyW = H * 0.36, bodyH = H * 0.46;
+        const bodyTop = gy - H * 0.04 - bodyH;
+        const bodyCX = bx, bodyCY = bodyTop + bodyH * 0.55;
+        const headR = H * 0.16;
+        const hy = bodyTop - headR * 0.62;
+        const outline = '#0f0e13';
+        const lw = Math.max(2, H * 0.013);
+        // he faces left, toward you and the big cigarette
+        const mouth = { x: bx - headR * 0.55, y: hy + headR * 0.3 };
+        const rest = { x: bx - bodyW * 0.6, y: bodyCY + bodyH * 0.1 };
         let hand = { ...rest };
         let budGlow = 0.4 + 0.1 * Math.sin(t * 0.8 + 2);
+        const bcyc = ((t + 4) % 11) / 11;
+        const puffing = bcyc >= 0.09 && bcyc < 0.24;
+        const exhaling = bcyc >= 0.33 && bcyc < 0.5;
         if (bcyc < 0.09) {
           const u = bcyc / 0.09;
           hand = { x: ease(rest.x, mouth.x, u), y: ease(rest.y, mouth.y, u) };
-        } else if (bcyc < 0.24) {
+        } else if (puffing) {
           hand = mouth;
           budGlow = 0.5 + 0.5 * Math.sin(((bcyc - 0.09) / 0.15) * Math.PI);
         } else if (bcyc < 0.33) {
           const u = (bcyc - 0.24) / 0.09;
           hand = { x: ease(mouth.x, rest.x, u), y: ease(mouth.y, rest.y, u) };
-        } else if (bcyc < 0.5 && Math.random() < 0.5) {
-          budPlume.emit(mouth.x + 6, mouth.y, 1, t, 46, 8);
+        } else if (exhaling && Math.random() < 0.5) {
+          budPlume.emit(mouth.x - 6, mouth.y - 2, 1, t, -38, -4);
         }
 
-        // ground shadow so he stands IN the scene, not on top of it
-        const shadow = ctx.createRadialGradient(bx, gy + 4, 0, bx, gy + 4, H * 0.22);
-        shadow.addColorStop(0, 'rgba(0,0,0,0.5)');
+        // ground shadow
+        const shadow = ctx.createRadialGradient(bx, gy + 4, 0, bx, gy + 4, H * 0.24);
+        shadow.addColorStop(0, 'rgba(0,0,0,0.45)');
         shadow.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = shadow;
         ctx.beginPath();
-        ctx.ellipse(bx, gy + 4, H * 0.22, H * 0.035, 0, 0, Math.PI * 2);
+        ctx.ellipse(bx, gy + 4, H * 0.24, H * 0.035, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // legs: dark denim, slight stance
-        const denim = ctx.createLinearGradient(bx - H * 0.1, 0, bx + H * 0.1, 0);
-        denim.addColorStop(0, '#191a22');
-        denim.addColorStop(1, '#101017');
-        ctx.strokeStyle = denim;
+        ctx.lineWidth = lw;
+        ctx.strokeStyle = outline;
         ctx.lineCap = 'round';
-        ctx.lineWidth = H * 0.078;
-        ctx.beginPath(); ctx.moveTo(bx - H * 0.02, hipY); ctx.lineTo(bx - H * 0.052, gy - H * 0.015); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(bx + H * 0.033, hipY); ctx.lineTo(bx + H * 0.08, gy - H * 0.015); ctx.stroke();
-        // shoes
-        ctx.fillStyle = '#0b0b10';
-        ctx.beginPath(); ctx.ellipse(bx - H * 0.045, gy - H * 0.006, H * 0.045, H * 0.016, -0.1, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(bx + H * 0.09, gy - H * 0.006, H * 0.045, H * 0.016, 0.1, 0, Math.PI * 2); ctx.fill();
 
-        // jacket: rounded torso with soft shading, warm rim on the city side
-        const jacket = ctx.createLinearGradient(bx - H * 0.12, 0, bx + H * 0.12, 0);
-        jacket.addColorStop(0, '#232128');
-        jacket.addColorStop(0.55, '#17161c');
-        jacket.addColorStop(1, '#0e0d12');
-        ctx.fillStyle = jacket;
+        // little legs + cream sneakers
+        ctx.fillStyle = '#23222b';
+        for (const s of [-1, 1]) {
+          ctx.beginPath();
+          ctx.roundRect(bx + s * bodyW * 0.16 - H * 0.038, gy - H * 0.1, H * 0.076, H * 0.09, H * 0.02);
+          ctx.fill(); ctx.stroke();
+        }
+        ctx.fillStyle = '#ddd3c2';
+        for (const s of [-1, 1]) {
+          ctx.beginPath();
+          ctx.ellipse(bx + s * bodyW * 0.16 - H * 0.006, gy - H * 0.012, H * 0.055, H * 0.024, 0, 0, Math.PI * 2);
+          ctx.fill(); ctx.stroke();
+        }
+
+        // round cozy sweater body
+        const sweater = ctx.createLinearGradient(bx - bodyW * 0.5, 0, bx + bodyW * 0.5, 0);
+        sweater.addColorStop(0, '#c08a52');
+        sweater.addColorStop(1, '#8f6337');
+        ctx.fillStyle = sweater;
         ctx.beginPath();
-        ctx.moveTo(bx - H * 0.09, hipY + H * 0.05);
-        ctx.bezierCurveTo(bx - H * 0.13, shY + H * 0.05, bx - H * 0.105, shY - H * 0.01, bx - H * 0.015, shY - H * 0.035);
-        ctx.bezierCurveTo(bx + H * 0.07, shY - H * 0.05, bx + H * 0.112, shY + H * 0.03, bx + H * 0.104, hipY + H * 0.03);
+        ctx.ellipse(bodyCX, bodyCY, bodyW * 0.5, bodyH * 0.52, 0, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+        // ribbed hem
+        ctx.strokeStyle = 'rgba(15,14,19,0.35)';
+        ctx.beginPath();
+        ctx.moveTo(bx - bodyW * 0.34, bodyCY + bodyH * 0.34);
+        ctx.quadraticCurveTo(bx, bodyCY + bodyH * 0.46, bx + bodyW * 0.34, bodyCY + bodyH * 0.34);
+        ctx.stroke();
+        ctx.strokeStyle = outline;
+
+        // head
+        const face = ctx.createLinearGradient(bx - headR, 0, bx + headR, 0);
+        face.addColorStop(0, '#f0d6b2');
+        face.addColorStop(1, '#d9b98f');
+        ctx.fillStyle = face;
+        ctx.beginPath();
+        ctx.arc(bx, hy, headR, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+
+        // rust beanie with a pom, sitting low
+        ctx.fillStyle = '#b85c38';
+        ctx.beginPath();
+        ctx.arc(bx, hy - headR * 0.02, headR * 1.04, Math.PI * 1.02, Math.PI * 1.98);
+        ctx.quadraticCurveTo(bx + headR * 1.05, hy - headR * 0.5, bx + headR * 0.98, hy - headR * 0.28);
+        ctx.lineTo(bx - headR * 0.98, hy - headR * 0.28);
         ctx.closePath();
-        ctx.fill();
-        // warm rim light on his left side (the ember/city side)
-        ctx.strokeStyle = 'rgba(255,150,80,0.14)';
-        ctx.lineWidth = 2;
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#c96f47'; // band
         ctx.beginPath();
-        ctx.moveTo(bx - H * 0.088, hipY + H * 0.04);
-        ctx.bezierCurveTo(bx - H * 0.128, shY + H * 0.05, bx - H * 0.103, shY - H * 0.008, bx - H * 0.013, shY - H * 0.033);
+        ctx.roundRect(bx - headR * 1.02, hy - headR * 0.42, headR * 2.04, headR * 0.22, headR * 0.1);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#e8e1d3'; // pom
+        ctx.beginPath();
+        ctx.arc(bx + headR * 0.1, hy - headR * 1.12, headR * 0.22, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+
+        // face: blink every few seconds, eyes closed while puffing
+        const blinking = (t % 4.3) < 0.12 || puffing;
+        ctx.fillStyle = outline;
+        ctx.lineWidth = Math.max(1.6, lw * 0.9);
+        for (const ex of [bx - headR * 0.52, bx - headR * 0.05]) {
+          if (blinking) {
+            ctx.beginPath();
+            ctx.arc(ex, hy + headR * 0.06, headR * 0.1, Math.PI * 0.15, Math.PI * 0.85);
+            ctx.stroke();
+          } else {
+            ctx.beginPath();
+            ctx.arc(ex, hy + headR * 0.04, headR * 0.075, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        // blush
+        ctx.fillStyle = 'rgba(226,110,80,0.3)';
+        ctx.beginPath();
+        ctx.ellipse(bx - headR * 0.62, hy + headR * 0.36, headR * 0.14, headR * 0.09, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(bx + headR * 0.28, hy + headR * 0.36, headR * 0.14, headR * 0.09, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // mouth: little 'o' while exhaling, soft smile otherwise
+        ctx.strokeStyle = outline;
+        if (exhaling) {
+          ctx.beginPath();
+          ctx.arc(mouth.x + headR * 0.12, mouth.y, headR * 0.09, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (!puffing) {
+          ctx.beginPath();
+          ctx.arc(mouth.x + headR * 0.16, mouth.y - headR * 0.06, headR * 0.14, Math.PI * 0.2, Math.PI * 0.8);
+          ctx.stroke();
+        }
+
+        // smoking arm: sweater sleeve out to a little mitt of a hand
+        ctx.strokeStyle = '#a5713f';
+        ctx.lineWidth = H * 0.055;
+        ctx.beginPath();
+        ctx.moveTo(bx - bodyW * 0.3, bodyCY - bodyH * 0.18);
+        ctx.quadraticCurveTo(bx - bodyW * 0.62, (bodyCY + hand.y) / 2, hand.x, hand.y);
         ctx.stroke();
+        ctx.fillStyle = '#f0d6b2';
+        ctx.strokeStyle = outline;
+        ctx.lineWidth = lw;
+        ctx.beginPath();
+        ctx.arc(hand.x, hand.y, H * 0.03, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
 
-        // collar joining torso to head, hood snug around the skull,
-        // and just a sliver of face catching warm light on the far side
-        ctx.fillStyle = '#1a191f';
-        ctx.beginPath();
-        ctx.roundRect(bx - headR * 0.9, headY + headR * 0.55, headR * 1.9, H * 0.09, headR * 0.5);
-        ctx.fill();
-        ctx.fillStyle = '#1c1b21';
-        ctx.beginPath();
-        ctx.ellipse(bx, headY, headR * 1.12, headR * 1.18, 0.24, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#241d14'; // face, mostly turned away
-        ctx.beginPath();
-        ctx.ellipse(bx + headR * 0.62, headY + headR * 0.12, headR * 0.5, headR * 0.78, 0.3, -1.2, 1.6);
-        ctx.fill();
-
-        // smoking arm: jacket sleeve, elbow out, hand visible
-        ctx.strokeStyle = '#1a1920';
-        ctx.lineWidth = H * 0.048;
-        ctx.beginPath();
-        ctx.moveTo(bx + H * 0.055, shY + H * 0.015);
-        ctx.quadraticCurveTo(bx + H * 0.14, (shY + hand.y) / 2 + H * 0.05, hand.x, hand.y);
-        ctx.stroke();
-        ctx.fillStyle = '#2a2016';
-        ctx.beginPath();
-        ctx.arc(hand.x, hand.y, H * 0.024, 0, Math.PI * 2);
-        ctx.fill();
-
-        // his cigarette + ember
-        const btip = { x: hand.x + H * 0.045, y: hand.y - H * 0.008 };
-        ctx.strokeStyle = 'rgba(228,220,206,0.75)';
-        ctx.lineWidth = 2.2;
-        ctx.beginPath(); ctx.moveTo(hand.x, hand.y); ctx.lineTo(btip.x, btip.y); ctx.stroke();
+        // his little cigarette + ember
+        const btip = { x: hand.x - H * 0.055, y: hand.y - H * 0.01 };
+        ctx.strokeStyle = 'rgba(238,231,217,0.9)';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(hand.x - H * 0.018, hand.y - H * 0.004); ctx.lineTo(btip.x, btip.y); ctx.stroke();
         ctx.fillStyle = `rgba(255,118,44,${Math.min(1, budGlow + 0.2)})`;
         ctx.shadowColor = '#ff7628';
-        ctx.shadowBlur = 6 + 16 * budGlow;
-        ctx.beginPath(); ctx.arc(btip.x, btip.y, 1.9 + budGlow, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 6 + 14 * budGlow;
+        ctx.beginPath(); ctx.arc(btip.x, btip.y, 2.2 + budGlow, 0, Math.PI * 2); ctx.fill();
         ctx.shadowBlur = 0;
         if (Math.random() < 0.12) budPlume.emit(btip.x, btip.y - 3, 1, t);
       }
@@ -564,10 +633,14 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         }
       }
       plume.step(dt, t);
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.clearRect(0, 0, smokeCv.width, smokeCv.height);
+      sctx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+      thread.draw(sctx, dragging ? emberGlow : emberGlow * 0.3);
+      plume.draw(sctx);
+      budPlume.draw(sctx);
       ctx.globalCompositeOperation = 'screen';
-      thread.draw(ctx, dragging ? emberGlow : emberGlow * 0.3);
-      plume.draw(ctx);
-      budPlume.draw(ctx);
+      ctx.drawImage(smokeCv, 0, 0, w, h);
       ctx.globalCompositeOperation = 'source-over';
 
       // drifting foreground bokeh, almost subliminal
