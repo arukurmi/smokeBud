@@ -92,13 +92,16 @@ export default function BreakPlayer({ manifest, fast = false, onComplete }:
           )}
         </>
       ) : (
-        <CanvasScene phase={item.phase} scene={manifest.scene} />
+        <CanvasScene phase={item.phase} scene={manifest.scene} progress={1 - left} />
       )}
-      <div className="burn" aria-hidden>
-        <div className="burn-line" data-testid="burn-progress" style={{ width: `${left * 100}%` }}>
-          <span className="burn-tip" />
+      {/* the canvas cigarette shows its own burn; keep the bar for video mode */}
+      {videoOk && (
+        <div className="burn" aria-hidden>
+          <div className="burn-line" data-testid="burn-progress" style={{ width: `${left * 100}%` }}>
+            <span className="burn-tip" />
+          </div>
         </div>
-      </div>
+      )}
       <Subtitles fast={fast} />
       <AmbientAudio rain={/rain/i.test(manifest.scene)} />
       <PresenceCounter fast={fast} />
