@@ -34,13 +34,32 @@ export function makeSmokeSprite(size = 128, core = 'rgba(226,231,240,0.5)'): HTM
   return c;
 }
 
-/** Horizontal wind at a point: layered sines approximate curling drafts. */
+// ---- value noise: smooth pseudo-random field for organic drift ----
+const hash2 = (ix: number, iy: number): number => {
+  const s = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+};
+const smooth = (u: number) => u * u * (3 - 2 * u);
+
+/** 2D value noise in [0,1], two octaves. */
+export function vnoise(x: number, y: number): number {
+  let out = 0;
+  let amp = 0.68;
+  for (let o = 0; o < 2; o++) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const fx = smooth(x - ix), fy = smooth(y - iy);
+    const a = hash2(ix, iy), b = hash2(ix + 1, iy);
+    const c = hash2(ix, iy + 1), d = hash2(ix + 1, iy + 1);
+    out += amp * (a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy);
+    x *= 2.1; y *= 2.1; amp *= 0.45;
+  }
+  return out;
+}
+
+/** Horizontal wind at a point: noise-driven drafts that never repeat. */
 function windX(y: number, t: number, phase: number): number {
-  return (
-    16 * Math.sin(y * 0.0042 + t * 0.33 + phase) +
-    9 * Math.sin(y * 0.011 - t * 0.21 + phase * 1.7) +
-    4 * Math.sin(y * 0.027 + t * 0.57)
-  );
+  return (vnoise(phase * 3.7, y * 0.006 - t * 0.09) - 0.5) * 46
+    + (vnoise(phase * 1.3 + 9, y * 0.017 + t * 0.05) - 0.5) * 18;
 }
 
 export interface PlumeOptions {
@@ -131,6 +150,86 @@ export class SmokePlume {
       ctx.rotate(Math.atan2(p.vy, p.vx) + p.angle * 0.06);
       ctx.drawImage(sprite, -p.size * stretch, -p.size, p.size * 2 * stretch, p.size * 2);
       ctx.restore();
+    }
+  }
+}
+
+interface ThreadPt { x: number; y: number; vx: number; age: number }
+
+export interface ThreadOptions {
+  /** Upward speed in px/s. */
+  rise?: number;
+  /** Lateral turbulence strength once the flow goes turbulent. */
+  turb?: number;
+  /** Peak segment alpha. */
+  peak?: number;
+  /** Max points kept in the filament. */
+  length?: number;
+}
+
+/**
+ * The laminar filament of cigarette smoke: a connected chain of points
+ * anchored at the ember. It rises glassy-smooth for the first stretch,
+ * then noise tears it into curls. Draw hands the tail off to a SmokePlume
+ * for the dispersed cloud phase.
+ */
+export class SmokeThread {
+  pts: ThreadPt[] = [];
+  private readonly rise: number;
+  private readonly turb: number;
+  private readonly peak: number;
+  private readonly maxLen: number;
+  private seed = Math.random() * 100;
+
+  constructor(opts: ThreadOptions = {}) {
+    this.rise = opts.rise ?? 46;
+    this.turb = opts.turb ?? 1;
+    this.peak = opts.peak ?? 0.5;
+    this.maxLen = opts.length ?? 96;
+  }
+
+  /** Advance the filament; returns the tail point (for plume hand-off) or null. */
+  update(dt: number, t: number, ax: number, ay: number, intensity = 1): ThreadPt | null {
+    this.pts.unshift({ x: ax, y: ay, vx: 0, age: 0 });
+    for (let i = 1; i < this.pts.length; i++) {
+      const p = this.pts[i];
+      p.age += dt;
+      const climb = ay - p.y; // px risen so far
+      // laminar for the first ~85px, then increasingly turbulent
+      const lam = Math.min(1, Math.max(0, (climb - 85) / 130));
+      const amp = (0.06 + lam * lam * this.turb) * 62 * intensity;
+      const n = vnoise(this.seed + p.x * 0.011, p.y * 0.011 - t * 0.22) - 0.5;
+      const n2 = vnoise(this.seed + 40 + p.y * 0.03 - t * 0.1, p.x * 0.005) - 0.5;
+      p.vx += ((n * amp + n2 * amp * 0.5) - p.vx) * (1 - Math.exp(-dt * 2.2));
+      p.x += p.vx * dt;
+      p.y -= this.rise * (0.85 + lam * 0.7) * dt;
+    }
+    return this.pts.length > this.maxLen ? this.pts.pop()! : null;
+  }
+
+  /** Tapered, per-segment strokes; call under 'screen' composite. */
+  draw(ctx: CanvasRenderingContext2D, glow = 0): void {
+    const n = this.pts.length;
+    if (n < 3) return;
+    ctx.lineCap = 'round';
+    for (let i = 1; i < n - 1; i++) {
+      const p = this.pts[i];
+      const u = i / this.maxLen;
+      const head = Math.min(1, i / 6); // ease in right at the ember
+      const a = this.peak * head * Math.pow(1 - u, 0.85);
+      if (a <= 0.004) continue;
+      // bluish side-stream near the source, warming with ember flare
+      const r = 168 + u * 42 + glow * (1 - u) * 60;
+      const g = 182 + u * 30 + glow * (1 - u) * 24;
+      const b = 212 + u * 16;
+      ctx.strokeStyle = `rgba(${r | 0},${g | 0},${b | 0},${a})`;
+      ctx.lineWidth = 1.6 + u * 8;
+      ctx.beginPath();
+      const m = this.pts[i - 1];
+      ctx.moveTo((m.x + p.x) / 2, (m.y + p.y) / 2);
+      const q = this.pts[i + 1];
+      ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
+      ctx.stroke();
     }
   }
 }

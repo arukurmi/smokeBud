@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef } from 'react';
-import { SmokePlume, fitCanvas } from '@/lib/smoke';
+import { SmokePlume, SmokeThread, fitCanvas } from '@/lib/smoke';
 
 // Ambient scene behind the landing page: a lone ember resting low in the
 // frame, its smoke curling up through the type. Someone else is out here too.
@@ -15,7 +15,8 @@ export default function SmokeBackdrop() {
     addEventListener('resize', onResize);
 
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const plume = new SmokePlume({ maxParticles: 260, rise: 44, drift: 9, peak: 0.1 });
+    const plume = new SmokePlume({ maxParticles: 220, rise: 40, drift: 9, peak: 0.12 });
+    const thread = new SmokeThread({ rise: 44, turb: 0.9, peak: 0.42, length: 90 });
     let raf = 0;
     let last = performance.now();
     let t = 0;
@@ -71,9 +72,11 @@ export default function SmokeBackdrop() {
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      if (Math.random() < 0.2 + breath * 0.22) plume.emit(x, y - 5, 1, t);
+      const tail = thread.update(dt, t, x, y - 5, 0.8 + breath * 0.5);
+      if (tail && Math.random() < 0.8) plume.emit(tail.x, tail.y, 1, t, tail.vx * 0.6, -12);
       plume.step(dt, t);
       ctx.globalCompositeOperation = 'screen';
+      thread.draw(ctx, breath * 0.35);
       plume.draw(ctx);
       ctx.globalCompositeOperation = 'source-over';
       raf = requestAnimationFrame(frame);

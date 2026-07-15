@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import type { ClipPhase } from '@/lib/companions';
-import { SmokePlume, fitCanvas } from '@/lib/smoke';
+import { SmokePlume, SmokeThread, fitCanvas } from '@/lib/smoke';
 
 // The built-in scene: one big cigarette burning down in real time — the
 // cigarette IS the session progress. It can lie flat or stand upright, a
@@ -100,8 +100,16 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         }))
       : [];
 
-    const plume = new SmokePlume({ maxParticles: 460, rise: 50, drift: 8, peak: 0.085 });
+    const plume = new SmokePlume({ maxParticles: 320, rise: 44, drift: 8, peak: 0.1 });
+    const thread = new SmokeThread({ rise: 50, turb: 1, peak: 0.4, length: 96 });
     const budPlume = bud ? new SmokePlume({ maxParticles: 130, rise: 30, drift: 26, peak: 0.08 }) : null;
+    // foreground bokeh for a hint of depth-of-field
+    const orbs = Array.from({ length: 4 }, (_, i) => ({
+      x: rnd(i * 31) , y: 0.25 + rnd(i * 31 + 7) * 0.6,
+      r: 46 + rnd(i * 31 + 3) * 90,
+      ph: rnd(i * 31 + 5) * Math.PI * 2,
+      warm: i % 2 === 0,
+    }));
     const flakes: Flake[] = [];
     const sparks: Spark[] = [];
     let ashLen = 6;
@@ -139,6 +147,19 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       const p = Math.min(1, Math.max(0, progressRef.current));
 
       ctx.drawImage(skyline, 0, 0);
+
+      // cinematic grade: cool wash from above, warm backlight behind center
+      const cool = ctx.createLinearGradient(0, 0, 0, h * 0.5);
+      cool.addColorStop(0, 'rgba(88,118,190,0.05)');
+      cool.addColorStop(1, 'rgba(88,118,190,0)');
+      ctx.fillStyle = cool;
+      ctx.fillRect(0, 0, w, h * 0.5);
+      const back = ctx.createRadialGradient(w * 0.5, h * 0.52, 0, w * 0.5, h * 0.52, Math.min(w, h) * 0.6);
+      back.addColorStop(0, 'rgba(255,132,60,0.05)');
+      back.addColorStop(0.6, 'rgba(255,132,60,0.018)');
+      back.addColorStop(1, 'rgba(255,132,60,0)');
+      ctx.fillStyle = back;
+      ctx.fillRect(0, 0, w, h);
 
       if (!rainy) {
         for (let i = 0; i < 42; i++) {
@@ -282,6 +303,30 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
       paperGrad.addColorStop(1, '#948d7f');
       ctx.fillStyle = paperGrad;
       ctx.fillRect(emberL, yT, filterX - bandW - emberL, cigH);
+      // paper seam and a faint brand ring near the band
+      ctx.strokeStyle = 'rgba(140,130,112,0.28)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(emberL + cigH * 0.8, yT + cigH * 0.24);
+      ctx.lineTo(filterX - bandW, yT + cigH * 0.24);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(150,118,66,0.5)';
+      ctx.lineWidth = 1.4;
+      for (const off of [cigH * 0.55, cigH * 0.55 + 4.5]) {
+        ctx.beginPath();
+        ctx.moveTo(filterX - bandW - off, yT + 1.5);
+        ctx.lineTo(filterX - bandW - off, yT + cigH - 1.5);
+        ctx.stroke();
+      }
+      // warm light spilling from the ember onto the paper
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const spill = ctx.createLinearGradient(emberL, 0, emberL + cigH * 2.4, 0);
+      spill.addColorStop(0, `rgba(255,110,40,${0.3 * emberGlow})`);
+      spill.addColorStop(1, 'rgba(255,110,40,0)');
+      ctx.fillStyle = spill;
+      ctx.fillRect(emberL, yT + 1.5, cigH * 2.4, cigH - 3);
+      ctx.restore();
       // singe creeping ahead of the ember
       const singe = ctx.createLinearGradient(emberL, 0, emberL + cigH * 1.1, 0);
       singe.addColorStop(0, 'rgba(55,28,14,0.9)');
@@ -448,16 +493,33 @@ export default function CanvasScene({ phase, scene, progress = 0, orient = 'h', 
         budPlume.step(dt, t);
       }
 
-      // smoke off the ember, rising through the frame
-      const rate = ph === 'winddown'
-        ? Math.max(0.05, 0.4 - sincePhase * 0.025)
-        : dragging ? 1 : 0.55;
-      if (Math.random() < rate) plume.emit(emberWX, emberWY - cigH * 0.5 - 4, 1, t);
+      // smoke: a laminar thread off the ember that tears into curls, then
+      // hands its tail to the sprite plume for the dispersed cloud phase
+      const intensity = ph === 'winddown'
+        ? Math.max(0.25, 1 - sincePhase * 0.06)
+        : dragging ? 1.4 : 1;
+      const tail = thread.update(dt, t, emberWX, emberWY - cigH * 0.5 - 2, intensity);
+      if (tail && Math.random() < 0.85 * intensity) {
+        plume.emit(tail.x, tail.y, 1, t, tail.vx * 0.6, -14);
+      }
       plume.step(dt, t);
       ctx.globalCompositeOperation = 'screen';
+      thread.draw(ctx, dragging ? emberGlow : emberGlow * 0.3);
       plume.draw(ctx);
       if (bud && budPlume) budPlume.draw(ctx);
       ctx.globalCompositeOperation = 'source-over';
+
+      // drifting foreground bokeh, almost subliminal
+      for (const o of orbs) {
+        const ox = (o.x * w + Math.sin(t * 0.05 + o.ph) * 40 + w) % w;
+        const oy = o.y * h + Math.cos(t * 0.04 + o.ph * 2) * 26;
+        const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, o.r);
+        const col = o.warm ? '255,170,90' : '140,170,240';
+        g.addColorStop(0, `rgba(${col},0.028)`);
+        g.addColorStop(1, `rgba(${col},0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(ox, oy, o.r, 0, Math.PI * 2); ctx.fill();
+      }
 
       if (rainy) {
         ctx.strokeStyle = 'rgba(168,188,222,0.14)';
